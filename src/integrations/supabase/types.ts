@@ -14,7 +14,124 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      attempts: {
+        Row: {
+          accuracy: number
+          correct_count: number
+          created_at: string
+          id: string
+          max_score: number
+          score: number
+          skipped_count: number
+          student_name: string
+          test_id: string
+          time_taken_seconds: number
+          wrong_count: number
+        }
+        Insert: {
+          accuracy?: number
+          correct_count?: number
+          created_at?: string
+          id?: string
+          max_score?: number
+          score?: number
+          skipped_count?: number
+          student_name?: string
+          test_id: string
+          time_taken_seconds?: number
+          wrong_count?: number
+        }
+        Update: {
+          accuracy?: number
+          correct_count?: number
+          created_at?: string
+          id?: string
+          max_score?: number
+          score?: number
+          skipped_count?: number
+          student_name?: string
+          test_id?: string
+          time_taken_seconds?: number
+          wrong_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attempts_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      questions: {
+        Row: {
+          body: string
+          correct_index: number
+          created_at: string
+          id: string
+          options: Json
+          position: number
+          test_id: string
+        }
+        Insert: {
+          body: string
+          correct_index?: number
+          created_at?: string
+          id?: string
+          options?: Json
+          position?: number
+          test_id: string
+        }
+        Update: {
+          body?: string
+          correct_index?: number
+          created_at?: string
+          id?: string
+          options?: Json
+          position?: number
+          test_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questions_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tests: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          negative_marks: number
+          positive_marks: number
+          subject: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          negative_marks?: number
+          positive_marks?: number
+          subject?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          negative_marks?: number
+          positive_marks?: number
+          subject?: string
+          title?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
