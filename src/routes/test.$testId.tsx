@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchQuestions, fetchTest } from "@/lib/mock-test";
+import { fetchQuestions, fetchTest, fetchStudentAttempts } from "@/lib/mock-test";
+import { getStudentName, setStudentName } from "@/lib/student";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,17 @@ function TestPage() {
   });
 
   const [name, setName] = useState("");
+  useEffect(() => {
+    const stored = getStudentName();
+    if (stored) setName(stored);
+  }, []);
+
+  const { data: myAttempts } = useQuery({
+    queryKey: ["my-attempts", name.trim()],
+    queryFn: () => fetchStudentAttempts(name.trim()),
+    enabled: name.trim().length > 0,
+  });
+  const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;
   const [started, setStarted] = useState(false);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -87,6 +99,7 @@ function TestPage() {
             skipped_count: skipped,
             accuracy,
             time_taken_seconds: Math.max(0, timeTaken),
+            answers,
           })
           .select()
           .single();
@@ -122,6 +135,9 @@ function TestPage() {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
   }
 
+  const limitReached =
+    test.max_attempts !== null && name.trim().length > 0 && usedAttempts >= test.max_attempts;
+
   if (!started) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
@@ -133,6 +149,11 @@ function TestPage() {
             <li>+{test.positive_marks} for each correct answer</li>
             <li>−{test.negative_marks} for each wrong answer</li>
             <li>The test auto-submits when the timer hits zero.</li>
+            <li>
+              {test.max_attempts === null
+                ? "Unlimited attempts allowed."
+                : `Attempts: ${usedAttempts}/${test.max_attempts}`}
+            </li>
           </ul>
           <div className="mt-6">
             <Label htmlFor="name">Your name</Label>
@@ -147,12 +168,15 @@ function TestPage() {
           <Button
             className="mt-6 w-full"
             size="lg"
+            disabled={limitReached}
             onClick={() => {
+              if (limitReached) return;
+              setStudentName(name.trim());
               setSecondsLeft(test.duration_minutes * 60);
               setStarted(true);
             }}
           >
-            Start test
+            {limitReached ? "Attempt limit reached" : usedAttempts > 0 ? "Retake test" : "Start test"}
           </Button>
         </div>
       </div>
