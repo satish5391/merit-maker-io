@@ -7,6 +7,7 @@ export type Test = {
   duration_minutes: number;
   positive_marks: number;
   negative_marks: number;
+  max_attempts: number | null;
   created_at: string;
 };
 
@@ -17,6 +18,7 @@ export type Question = {
   body: string;
   options: string[];
   correct_index: number;
+  explanation: string;
 };
 
 export type Attempt = {
@@ -30,8 +32,20 @@ export type Attempt = {
   skipped_count: number;
   accuracy: number;
   time_taken_seconds: number;
+  answers: Record<string, number>;
   created_at: string;
 };
+
+function normalizeAttempt(row: Record<string, unknown>): Attempt {
+  const raw = row['answers'];
+  return {
+    ...(row as unknown as Attempt),
+    answers:
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, number>)
+        : {},
+  };
+}
 
 export async function fetchTests(): Promise<Test[]> {
   const { data, error } = await supabase
@@ -57,6 +71,7 @@ export async function fetchQuestions(testId: string): Promise<Question[]> {
   if (error) throw error;
   return (data ?? []).map((q) => ({
     ...q,
+    explanation: q.explanation ?? "",
     options: (Array.isArray(q.options) ? q.options : []) as string[],
   })) as Question[];
 }
@@ -68,13 +83,25 @@ export async function fetchAttempts(testId: string): Promise<Attempt[]> {
     .eq("test_id", testId)
     .order("score", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Attempt[];
+  return (data ?? []).map(normalizeAttempt);
 }
 
 export async function fetchAttempt(id: string): Promise<Attempt> {
   const { data, error } = await supabase.from("attempts").select("*").eq("id", id).single();
   if (error) throw error;
-  return data as Attempt;
+  return normalizeAttempt(data);
+}
+
+/** All attempts made by one student, newest first. */
+export async function fetchStudentAttempts(studentName: string): Promise<Attempt[]> {
+  if (!studentName.trim()) return [];
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("*")
+    .eq("student_name", studentName.trim())
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(normalizeAttempt);
 }
 
 export async function countQuestions(testId: string): Promise<number> {
@@ -84,4 +111,14 @@ export async function countQuestions(testId: string): Promise<number> {
     .eq("test_id", testId);
   if (error) throw error;
   return count ?? 0;
+}
+
+/** Percentile of an attempt among all attempts of the same test. */
+export function computeRanking(attempt: Attempt, attempts: Attempt[]) {
+  const sorted = [...attempts].sort((a, b) => Number(b.score) - Number(a.score));
+  const rank = sorted.findIndex((a) => a.id === attempt.id) + 1;
+  const total = sorted.length;
+  const below = sorted.filter((a) => Number(a.score) < Number(attempt.score)).length;
+  const percentile = total > 1 ? Math.round((below / (total - 1)) * 1000) / 10 : 100;
+  return { sorted, rank, total, below, percentile };
 }
