@@ -17,6 +17,7 @@ export type Database = {
       attempts: {
         Row: {
           accuracy: number
+          answers: Json
           correct_count: number
           created_at: string
           id: string
@@ -30,6 +31,7 @@ export type Database = {
         }
         Insert: {
           accuracy?: number
+          answers?: Json
           correct_count?: number
           created_at?: string
           id?: string
@@ -43,6 +45,7 @@ export type Database = {
         }
         Update: {
           accuracy?: number
+          answers?: Json
           correct_count?: number
           created_at?: string
           id?: string
@@ -69,6 +72,7 @@ export type Database = {
           body: string
           correct_index: number
           created_at: string
+          explanation: string
           id: string
           options: Json
           position: number
@@ -78,6 +82,7 @@ export type Database = {
           body: string
           correct_index?: number
           created_at?: string
+          explanation?: string
           id?: string
           options?: Json
           position?: number
@@ -87,6 +92,7 @@ export type Database = {
           body?: string
           correct_index?: number
           created_at?: string
+          explanation?: string
           id?: string
           options?: Json
           position?: number
@@ -107,6 +113,7 @@ export type Database = {
           created_at: string
           duration_minutes: number
           id: string
+          max_attempts: number | null
           negative_marks: number
           positive_marks: number
           subject: string
@@ -116,6 +123,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          max_attempts?: number | null
           negative_marks?: number
           positive_marks?: number
           subject?: string
@@ -125,6 +133,7 @@ export type Database = {
           created_at?: string
           duration_minutes?: number
           id?: string
+          max_attempts?: number | null
           negative_marks?: number
           positive_marks?: number
           subject?: string
