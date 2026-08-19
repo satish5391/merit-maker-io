@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ResultAttemptIdRouteImport } from './routes/result.$attemptId'
+import { Route as TestTestIdRouteImport } from './routes/test.$testId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +24,49 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResultAttemptIdRoute = ResultAttemptIdRouteImport.update({
+  id: '/result/$attemptId',
+  path: '/result/$attemptId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestTestIdRoute = TestTestIdRouteImport.update({
+  id: '/test/$testId',
+  path: '/test/$testId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/result/$attemptId': typeof ResultAttemptIdRoute
+  '/test/$testId': typeof TestTestIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/result/$attemptId': typeof ResultAttemptIdRoute
+  '/test/$testId': typeof TestTestIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/result/$attemptId': typeof ResultAttemptIdRoute
+  '/test/$testId': typeof TestTestIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin'
+  fullPaths: '/' | '/admin' | '/result/$attemptId' | '/test/$testId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin'
-  id: '__root__' | '/' | '/admin'
+  to: '/' | '/admin' | '/result/$attemptId' | '/test/$testId'
+  id: '__root__' | '/' | '/admin' | '/result/$attemptId' | '/test/$testId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  ResultAttemptIdRoute: typeof ResultAttemptIdRoute
+  TestTestIdRoute: typeof TestTestIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +85,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/result/$attemptId': {
+      id: '/result/$attemptId'
+      path: '/result/$attemptId'
+      fullPath: '/result/$attemptId'
+      preLoaderRoute: typeof ResultAttemptIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test/$testId': {
+      id: '/test/$testId'
+      path: '/test/$testId'
+      fullPath: '/test/$testId'
+      preLoaderRoute: typeof TestTestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  ResultAttemptIdRoute: ResultAttemptIdRoute,
+  TestTestIdRoute: TestTestIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
