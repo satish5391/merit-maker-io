@@ -117,13 +117,53 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function SiteHeader() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <Link to="/" className="font-display text-lg font-bold tracking-tight">
+          Test<span className="text-primary">Prep</span>
+        </Link>
+        <nav className="flex items-center gap-1 text-sm">
+          <Link
+            to="/"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
+            activeOptions={{ exact: true }}
+          >
+            Tests
+          </Link>
+          <Link
+            to="/admin"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
+          >
+            Admin
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <div className="flex min-h-screen flex-col font-sans">
+        <SiteHeader />
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
+          TestPrep — practice mock tests with instant analysis.
+        </footer>
+      </div>
+      <Toaster position="top-center" richColors />
     </QueryClientProvider>
   );
+}
+
 }
