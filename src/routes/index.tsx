@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, FileText, Plus, Trophy, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Clock, FileText, Plus, Repeat, Trophy, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchTests, type Test } from "@/lib/mock-test";
+import { fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
+import { getStudentName } from "@/lib/student";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +49,15 @@ function Home() {
     queryFn: fetchTestsWithStats,
   });
 
+  const [student, setStudent] = useState("");
+  useEffect(() => setStudent(getStudentName()), []);
+
+  const { data: myAttempts } = useQuery({
+    queryKey: ["my-attempts", student],
+    queryFn: () => fetchStudentAttempts(student),
+    enabled: student.length > 0,
+  });
+
   return (
     <div>
       <section className="border-b border-border" style={{ background: "var(--gradient-hero)" }}>
@@ -89,7 +100,10 @@ function Home() {
           {isLoading &&
             [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
 
-          {tests?.map((t) => (
+          {tests?.map((t) => {
+            const used = (myAttempts ?? []).filter((a) => a.test_id === t.id).length;
+            const limitReached = t.max_attempts !== null && used >= t.max_attempts;
+            return (
             <article
               key={t.id}
               className="flex flex-col rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"
@@ -112,13 +126,31 @@ function Home() {
                   <Users className="size-4" /> {t.attemptCount} attempts
                 </div>
               </dl>
-              <Button asChild className="mt-5 w-full" disabled={t.questionCount === 0}>
-                <Link to="/test/$testId" params={{ testId: t.id }}>
-                  {t.questionCount === 0 ? "No questions yet" : "Start test"}
-                </Link>
-              </Button>
+              <div className="mt-3">
+                <Badge variant={limitReached ? "destructive" : "outline"} className="w-fit">
+                  <Repeat className="mr-1 size-3" />
+                  Attempts: {used}/{t.max_attempts === null ? "∞" : t.max_attempts}
+                </Badge>
+              </div>
+
+              {limitReached ? (
+                <Button className="mt-5 w-full" disabled>
+                  Attempt limit reached
+                </Button>
+              ) : (
+                <Button asChild className="mt-5 w-full" disabled={t.questionCount === 0}>
+                  <Link to="/test/$testId" params={{ testId: t.id }}>
+                    {t.questionCount === 0
+                      ? "No questions yet"
+                      : used > 0
+                        ? "Retake test"
+                        : "Take test"}
+                  </Link>
+                </Button>
+              )}
             </article>
-          ))}
+            );
+          })}
 
           {tests && tests.length === 0 && (
             <p className="text-sm text-muted-foreground">

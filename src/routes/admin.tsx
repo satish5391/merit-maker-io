@@ -40,9 +40,15 @@ type Draft = {
   body: string;
   options: string[];
   correct_index: number;
+  explanation: string;
 };
 
-const emptyDraft = (): Draft => ({ body: "", options: ["", "", "", ""], correct_index: 0 });
+const emptyDraft = (): Draft => ({
+  body: "",
+  options: ["", "", "", ""],
+  correct_index: 0,
+  explanation: "",
+});
 
 function Admin() {
   const qc = useQueryClient();
@@ -53,6 +59,7 @@ function Admin() {
   const [duration, setDuration] = useState(10);
   const [positive, setPositive] = useState(2);
   const [negative, setNegative] = useState(0.5);
+  const [maxAttempts, setMaxAttempts] = useState<string>("1");
   const [questions, setQuestions] = useState<Draft[]>([emptyDraft()]);
 
   const createTest = useMutation({
@@ -71,6 +78,10 @@ function Admin() {
           duration_minutes: duration,
           positive_marks: positive,
           negative_marks: negative,
+          max_attempts:
+            maxAttempts.trim().toLowerCase() === "unlimited" || maxAttempts.trim() === ""
+              ? null
+              : Math.max(1, Number(maxAttempts)),
         })
         .select()
         .single();
@@ -83,6 +94,7 @@ function Admin() {
           body: q.body.trim(),
           options: q.options.map((o) => o.trim()),
           correct_index: q.correct_index,
+          explanation: q.explanation.trim(),
         })),
       );
       if (qErr) throw qErr;
@@ -179,6 +191,19 @@ function Admin() {
                 className="mt-1.5"
               />
             </div>
+            <div>
+              <Label htmlFor="attempts">Max attempts allowed</Label>
+              <Input
+                id="attempts"
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
+                placeholder="1 or Unlimited"
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter a number, or type "Unlimited" for no limit.
+              </p>
+            </div>
           </div>
 
           <div className="mt-8 space-y-5">
@@ -233,6 +258,16 @@ function Admin() {
                 <p className="mt-2 text-xs text-muted-foreground">
                   Select the radio next to the correct option.
                 </p>
+                <div className="mt-3">
+                  <Label htmlFor={`explanation-${i}`}>Answer explanation / solution</Label>
+                  <Textarea
+                    id={`explanation-${i}`}
+                    value={q.explanation}
+                    onChange={(e) => patch(i, { explanation: e.target.value })}
+                    placeholder="Explain how the correct answer is derived…"
+                    className="mt-1.5 min-h-24"
+                  />
+                </div>
               </div>
             ))}
 
@@ -268,6 +303,9 @@ function Admin() {
                     <Badge variant="secondary">{t.duration_minutes} min</Badge>
                     <Badge variant="secondary">
                       +{t.positive_marks} / −{t.negative_marks}
+                    </Badge>
+                    <Badge variant="secondary">
+                      {t.max_attempts === null ? "Unlimited attempts" : `${t.max_attempts} attempt(s)`}
                     </Badge>
                   </div>
                   <QuestionList testId={t.id} />
