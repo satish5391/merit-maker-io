@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AttemptedTestsRouteImport } from './routes/attempted-tests'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ResultAttemptIdRouteImport } from './routes/result.$attemptId'
 import { Route as ReviewAttemptIdRouteImport } from './routes/review.$attemptId'
@@ -24,6 +25,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AttemptedTestsRoute = AttemptedTestsRouteImport.update({
+  id: '/attempted-tests',
+  path: '/attempted-tests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -50,6 +56,7 @@ const TestTestIdRoute = TestTestIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/attempted-tests'
     | '/history'
     | '/result/$attemptId'
     | '/review/$attemptId'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/attempted-tests'
     | '/history'
     | '/result/$attemptId'
     | '/review/$attemptId'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/attempted-tests'
     | '/history'
     | '/result/$attemptId'
     | '/review/$attemptId'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AttemptedTestsRoute: typeof AttemptedTestsRoute
   HistoryRoute: typeof HistoryRoute
   ResultAttemptIdRoute: typeof ResultAttemptIdRoute
   ReviewAttemptIdRoute: typeof ReviewAttemptIdRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/attempted-tests': {
+      id: '/attempted-tests'
+      path: '/attempted-tests'
+      fullPath: '/attempted-tests'
+      preLoaderRoute: typeof AttemptedTestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AttemptedTestsRoute: AttemptedTestsRoute,
   HistoryRoute: HistoryRoute,
   ResultAttemptIdRoute: ResultAttemptIdRoute,
   ReviewAttemptIdRoute: ReviewAttemptIdRoute,

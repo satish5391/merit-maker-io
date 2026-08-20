@@ -136,6 +136,13 @@ function SiteHeader() {
             Tests
           </Link>
           <Link
+            to="/attempted-tests"
+            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
+          >
+            Attempted Tests
+          </Link>
+          <Link
             to="/admin"
             className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}

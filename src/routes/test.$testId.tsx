@@ -1,11 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
+import { TriangleAlert as AlertTriangle, ChevronLeft, ChevronRight, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchQuestions, fetchTest, fetchStudentAttempts } from "@/lib/mock-test";
 import { getStudentName, setStudentName } from "@/lib/student";
+import { saveAttemptToHistory } from "@/lib/attempt-history";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -104,6 +105,17 @@ function TestPage() {
           .select()
           .single();
         if (error) throw error;
+
+        saveAttemptToHistory({
+          id: data.id,
+          test_id: data.test_id,
+          score: Number(data.score),
+          max_score: Number(data.max_score),
+          accuracy: Number(data.accuracy),
+          created_at: data.created_at,
+          testTitle: test.title,
+          category: test.category,
+        });
 
         if (auto) toast.info("Time's up — your test was submitted automatically.");
         navigate({ to: "/result/$attemptId", params: { attemptId: data.id } });
