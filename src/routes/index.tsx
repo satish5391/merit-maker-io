@@ -52,11 +52,18 @@ function Home() {
   const [student, setStudent] = useState("");
   useEffect(() => setStudent(getStudentName()), []);
 
+  const [activeCategory, setActiveCategory] = useState("All");
+
   const { data: myAttempts } = useQuery({
     queryKey: ["my-attempts", student],
     queryFn: () => fetchStudentAttempts(student),
     enabled: student.length > 0,
   });
+
+  const categories = ["All", ...Array.from(new Set((tests ?? []).map((t) => t.category)))];
+  const visibleTests = (tests ?? []).filter(
+    (t) => activeCategory === "All" || t.category === activeCategory,
+  );
 
   return (
     <div>
@@ -96,11 +103,30 @@ function Home() {
           Pick a paper and start whenever you're ready. The timer starts on the first question.
         </p>
 
+        <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Exam categories">
+          {categories.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="tab"
+              aria-selected={activeCategory === c}
+              onClick={() => setActiveCategory(c)}
+              className={
+                activeCategory === c
+                  ? "rounded-full border border-primary bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground"
+                  : "rounded-full border border-border bg-card px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              }
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {isLoading &&
             [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
 
-          {tests?.map((t) => {
+          {visibleTests.map((t) => {
             const used = (myAttempts ?? []).filter((a) => a.test_id === t.id).length;
             const limitReached = t.max_attempts !== null && used >= t.max_attempts;
             return (
@@ -108,9 +134,12 @@ function Home() {
               key={t.id}
               className="flex flex-col rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"
             >
-              <Badge variant="secondary" className="w-fit">
-                {t.subject}
-              </Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge className="w-fit">{t.category}</Badge>
+                <Badge variant="secondary" className="w-fit">
+                  {t.subject}
+                </Badge>
+              </div>
               <h3 className="mt-3 font-display text-lg font-semibold leading-snug">{t.title}</h3>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -152,9 +181,9 @@ function Home() {
             );
           })}
 
-          {tests && tests.length === 0 && (
+          {tests && visibleTests.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              No tests yet — create one from the admin dashboard.
+              No tests in this category yet — create one from the admin dashboard.
             </p>
           )}
         </div>
