@@ -110,6 +110,7 @@ export type Database = {
       }
       tests: {
         Row: {
+          category: string
           created_at: string
           duration_minutes: number
           id: string
@@ -120,6 +121,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          category?: string
           created_at?: string
           duration_minutes?: number
           id?: string
@@ -130,6 +132,7 @@ export type Database = {
           title: string
         }
         Update: {
+          category?: string
           created_at?: string
           duration_minutes?: number
           id?: string

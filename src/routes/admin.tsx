@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchTests, fetchQuestions } from "@/lib/mock-test";
@@ -20,16 +20,16 @@ import {
 export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
-      { title: "Admin Dashboard — Create Mock Tests | TestPrep" },
+      { title: "Admin Dashboard — Create & Edit Mock Tests | TestPrep" },
       {
         name: "description",
         content:
-          "Create mock tests with custom duration, positive and negative marking, add questions and delete tests.",
+          "Create and edit mock tests with exam categories, custom duration, positive and negative marking, explanations and attempt limits.",
       },
       { property: "og:title", content: "Admin Dashboard — TestPrep" },
       {
         property: "og:description",
-        content: "Create and manage mock tests with positive and negative marking.",
+        content: "Create, edit and delete mock tests by exam category with full marking control.",
       },
     ],
   }),
@@ -50,11 +50,22 @@ const emptyDraft = (): Draft => ({
   explanation: "",
 });
 
+const CATEGORY_SUGGESTIONS = [
+  "Junior Assistant",
+  "FAA Exam",
+  "Banking",
+  "SSC",
+  "Railways",
+  "General",
+];
+
 function Admin() {
   const qc = useQueryClient();
   const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: fetchTests });
 
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("General");
   const [subject, setSubject] = useState("General");
   const [duration, setDuration] = useState(10);
   const [positive, setPositive] = useState(2);
@@ -62,34 +73,65 @@ function Admin() {
   const [maxAttempts, setMaxAttempts] = useState<string>("1");
   const [questions, setQuestions] = useState<Draft[]>([emptyDraft()]);
 
-  const createTest = useMutation({
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle("");
+    setCategory("General");
+    setSubject("General");
+    setDuration(10);
+    setPositive(2);
+    setNegative(0.5);
+    setMaxAttempts("1");
+    setQuestions([emptyDraft()]);
+  };
+
+  const parsedAttempts = () =>
+    maxAttempts.trim().toLowerCase() === "unlimited" || maxAttempts.trim() === ""
+      ? null
+      : Math.max(1, Number(maxAttempts));
+
+  const validQuestions = () =>
+    questions.filter((q) => q.body.trim() && q.options.every((o) => o.trim().length > 0));
+
+  const saveTest = useMutation({
     mutationFn: async () => {
-      const valid = questions.filter(
-        (q) => q.body.trim() && q.options.every((o) => o.trim().length > 0),
-      );
+      const valid = validQuestions();
       if (!title.trim()) throw new Error("Test title is required");
       if (valid.length === 0) throw new Error("Add at least one complete question");
 
-      const { data: test, error } = await supabase
-        .from("tests")
-        .insert({
-          title: title.trim(),
-          subject: subject.trim() || "General",
-          duration_minutes: duration,
-          positive_marks: positive,
-          negative_marks: negative,
-          max_attempts:
-            maxAttempts.trim().toLowerCase() === "unlimited" || maxAttempts.trim() === ""
-              ? null
-              : Math.max(1, Number(maxAttempts)),
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      const payload = {
+        title: title.trim(),
+        category: category.trim() || "General",
+        subject: subject.trim() || "General",
+        duration_minutes: duration,
+        positive_marks: positive,
+        negative_marks: negative,
+        max_attempts: parsedAttempts(),
+      };
+
+      let testId = editingId;
+
+      if (editingId) {
+        const { error } = await supabase.from("tests").update(payload).eq("id", editingId);
+        if (error) throw error;
+        const { error: delErr } = await supabase
+          .from("questions")
+          .delete()
+          .eq("test_id", editingId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: test, error } = await supabase
+          .from("tests")
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        testId = test.id;
+      }
 
       const { error: qErr } = await supabase.from("questions").insert(
         valid.map((q, i) => ({
-          test_id: test.id,
+          test_id: testId!,
           position: i + 1,
           body: q.body.trim(),
           options: q.options.map((o) => o.trim()),
@@ -98,16 +140,49 @@ function Admin() {
         })),
       );
       if (qErr) throw qErr;
+      return testId!;
     },
-    onSuccess: () => {
-      toast.success("Test created");
-      setTitle("");
-      setQuestions([emptyDraft()]);
+    onSuccess: (testId) => {
+      toast.success(editingId ? "Test updated" : "Test created");
+      resetForm();
       qc.invalidateQueries({ queryKey: ["tests"] });
       qc.invalidateQueries({ queryKey: ["tests-with-stats"] });
+      qc.invalidateQueries({ queryKey: ["questions", testId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const startEdit = async (testId: string) => {
+    const test = tests?.find((t) => t.id === testId);
+    if (!test) return;
+    try {
+      const qs = await qc.fetchQuery({
+        queryKey: ["questions", testId],
+        queryFn: () => fetchQuestions(testId),
+      });
+      setEditingId(test.id);
+      setTitle(test.title);
+      setCategory(test.category ?? "General");
+      setSubject(test.subject);
+      setDuration(test.duration_minutes);
+      setPositive(Number(test.positive_marks));
+      setNegative(Number(test.negative_marks));
+      setMaxAttempts(test.max_attempts === null ? "Unlimited" : String(test.max_attempts));
+      setQuestions(
+        qs.length
+          ? qs.map((q) => ({
+              body: q.body,
+              options: q.options.length ? q.options : ["", "", "", ""],
+              correct_index: q.correct_index,
+              explanation: q.explanation ?? "",
+            }))
+          : [emptyDraft()],
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not load test");
+    }
+  };
 
   const deleteTest = useMutation({
     mutationFn: async (id: string) => {
@@ -116,6 +191,7 @@ function Admin() {
     },
     onSuccess: () => {
       toast.success("Test deleted");
+      resetForm();
       qc.invalidateQueries({ queryKey: ["tests"] });
       qc.invalidateQueries({ queryKey: ["tests-with-stats"] });
     },
@@ -129,12 +205,22 @@ function Admin() {
     <div className="mx-auto max-w-5xl px-4 py-10">
       <h1 className="font-display text-2xl font-bold md:text-3xl">Admin dashboard</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Create mock tests with custom marking schemes, and remove tests you no longer need.
+        Create, edit and delete mock tests with exam categories, marking schemes, explanations and
+        attempt limits.
       </p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <h2 className="font-display text-lg font-semibold">New test</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-semibold">
+              {editingId ? "Edit test" : "New test"}
+            </h2>
+            {editingId && (
+              <Button variant="ghost" size="sm" onClick={resetForm}>
+                <X className="mr-1 size-4" /> Cancel edit
+              </Button>
+            )}
+          </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -146,6 +232,24 @@ function Admin() {
                 placeholder="Reasoning Mock Test 2"
                 className="mt-1.5"
               />
+            </div>
+            <div>
+              <Label htmlFor="category">Exam category</Label>
+              <Input
+                id="category"
+                list="category-options"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="Junior Assistant"
+                className="mt-1.5"
+              />
+              <datalist id="category-options">
+                {Array.from(
+                  new Set([...(tests ?? []).map((t) => t.category), ...CATEGORY_SUGGESTIONS]),
+                ).map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </div>
             <div>
               <Label htmlFor="subject">Subject</Label>
@@ -166,6 +270,19 @@ function Admin() {
                 onChange={(e) => setDuration(Number(e.target.value))}
                 className="mt-1.5"
               />
+            </div>
+            <div>
+              <Label htmlFor="attempts">Max attempts allowed</Label>
+              <Input
+                id="attempts"
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(e.target.value)}
+                placeholder="1 or Unlimited"
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter a number, or type "Unlimited" for no limit.
+              </p>
             </div>
             <div>
               <Label htmlFor="pos">Marks per correct answer</Label>
@@ -191,19 +308,6 @@ function Admin() {
                 className="mt-1.5"
               />
             </div>
-            <div>
-              <Label htmlFor="attempts">Max attempts allowed</Label>
-              <Input
-                id="attempts"
-                value={maxAttempts}
-                onChange={(e) => setMaxAttempts(e.target.value)}
-                placeholder="1 or Unlimited"
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Enter a number, or type "Unlimited" for no limit.
-              </p>
-            </div>
           </div>
 
           <div className="mt-8 space-y-5">
@@ -216,9 +320,7 @@ function Admin() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() =>
-                        setQuestions((prev) => prev.filter((_, idx) => idx !== i))
-                      }
+                      onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -282,10 +384,14 @@ function Admin() {
           <Button
             className="mt-8 w-full"
             size="lg"
-            onClick={() => createTest.mutate()}
-            disabled={createTest.isPending}
+            onClick={() => saveTest.mutate()}
+            disabled={saveTest.isPending}
           >
-            {createTest.isPending ? "Creating…" : "Create test"}
+            {saveTest.isPending
+              ? "Saving…"
+              : editingId
+                ? "Save changes"
+                : "Create test"}
           </Button>
         </section>
 
@@ -299,24 +405,31 @@ function Admin() {
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="flex flex-wrap gap-2 text-xs">
+                    <Badge>{t.category}</Badge>
                     <Badge variant="secondary">{t.subject}</Badge>
                     <Badge variant="secondary">{t.duration_minutes} min</Badge>
                     <Badge variant="secondary">
                       +{t.positive_marks} / −{t.negative_marks}
                     </Badge>
                     <Badge variant="secondary">
-                      {t.max_attempts === null ? "Unlimited attempts" : `${t.max_attempts} attempt(s)`}
+                      {t.max_attempts === null
+                        ? "Unlimited attempts"
+                        : `${t.max_attempts} attempt(s)`}
                     </Badge>
                   </div>
                   <QuestionList testId={t.id} />
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="mt-4"
-                    onClick={() => deleteTest.mutate(t.id)}
-                  >
-                    <Trash2 className="mr-1 size-4" /> Delete test
-                  </Button>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void startEdit(t.id)}>
+                      <Pencil className="mr-1 size-4" /> Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteTest.mutate(t.id)}
+                    >
+                      <Trash2 className="mr-1 size-4" /> Delete test
+                    </Button>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             ))}

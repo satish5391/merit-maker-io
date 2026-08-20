@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type Test = {
   id: string;
   title: string;
+  category: string;
   subject: string;
   duration_minutes: number;
   positive_marks: number;
