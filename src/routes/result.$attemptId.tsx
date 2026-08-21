@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { Bar } from "react-chartjs-2";
 import {
   BarElement,
@@ -10,7 +11,7 @@ import {
   Title,
   Tooltip,
 } from "chart.js";
-import { fetchAttempt, fetchAttempts, fetchTest } from "@/lib/mock-test";
+import { fetchAttempt, fetchAttemptScores, fetchTest, countQuestions } from "@/lib/mock-test";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -39,33 +40,102 @@ export const Route = createFileRoute("/result/$attemptId")({
 function ResultPage() {
   const { attemptId } = Route.useParams();
 
-  const { data } = useQuery({
-    queryKey: ["result", attemptId],
-    queryFn: async () => {
-      const attempt = await fetchAttempt(attemptId);
-      const [test, attempts] = await Promise.all([
-        fetchTest(attempt.test_id),
-        fetchAttempts(attempt.test_id),
-      ]);
-      return { attempt, test, attempts };
-    },
+  // Hooks: fetch attempt first, then dependent queries
+  const {
+    data: attempt,
+    isLoading: isLoadingAttempt,
+    isError: isErrorAttempt,
+  } = useQuery({ queryKey: ["attempt", attemptId], queryFn: () => fetchAttempt(attemptId) });
+
+  const {
+    data: test,
+    isLoading: isLoadingTest,
+    isError: isErrorTest,
+  } = useQuery({ queryKey: ["test", attempt?.test_id], queryFn: () => fetchTest(String(attempt!.test_id)), enabled: Boolean(attempt?.test_id) });
+
+  // Fetch only lightweight attempt scores for ranking/percentile
+  const { data: attemptScores, isLoading: isLoadingAttemptScores } = useQuery({
+    queryKey: ["attemptScores", attempt?.test_id],
+    queryFn: () => fetchAttemptScores(String(attempt!.test_id)),
+    enabled: Boolean(attempt?.test_id),
   });
 
-  if (!data) {
+  // Fetch total question count only (lightweight)
+  const { data: totalQuestions, isLoading: isLoadingQuestionCount } = useQuery({
+    queryKey: ["questionCount", attempt?.test_id],
+    queryFn: () => countQuestions(String(attempt!.test_id)),
+    enabled: Boolean(attempt?.test_id),
+  });
+
+  // Defensive sections parsing (hooks must be at top)
+  const rawSections = (test as any)?.sections;
+  const sections = useMemo(() => {
+    if (!rawSections) return [] as any[];
+    if (typeof rawSections === "string") {
+      try {
+        const parsed = JSON.parse(rawSections);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return Array.isArray(rawSections) ? rawSections : [];
+  }, [rawSections]);
+
+  const effectiveSections = useMemo(() => {
+    if (sections.length > 0) return sections;
+    return [
+      { id: "section-default", name: test?.title ?? "Section", duration_minutes: test?.duration_minutes ?? 0 },
+    ];
+  }, [sections, test]);
+
+  // Loading / error guards
+  if (isLoadingAttempt) {
+    return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading scorecard…</div>;
+  }
+
+  if (isErrorAttempt || (!isLoadingAttempt && !attempt)) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading scorecard…</div>
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <div className="rounded-xl border border-border bg-card p-6 text-center">
+          <h2 className="text-lg font-semibold">Attempt not found</h2>
+          <p className="mt-2 text-sm text-muted-foreground">We couldn't find the requested attempt.</p>
+          <div className="mt-4">
+            <Button asChild>
+              <Link to="/attempted-tests">Back to Attempts</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  const { attempt, test, attempts } = data;
-  const sorted = [...attempts].sort((a, b) => Number(b.score) - Number(a.score));
+  // While attempt exists, show skeleton if dependent data is loading
+  if (attempt && (isLoadingTest || isLoadingAttemptScores || isLoadingQuestionCount)) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <div className="animate-pulse mx-auto max-w-3xl">
+          <div className="h-6 w-48 rounded bg-muted mb-4" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-24 rounded bg-muted" />
+            <div className="h-24 rounded bg-muted" />
+            <div className="h-24 rounded bg-muted" />
+            <div className="h-24 rounded bg-muted" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const safeAttempts = Array.isArray(attemptScores) ? attemptScores : [];
+  const sorted = [...safeAttempts].sort((a, b) => Number(b.score) - Number(a.score));
   const rank = sorted.findIndex((a) => a.id === attempt.id) + 1;
   const total = sorted.length;
   const below = sorted.filter((a) => Number(a.score) < Number(attempt.score)).length;
   const percentile = total > 1 ? Math.round((below / (total - 1)) * 1000) / 10 : 100;
   const topScore = Number(sorted[0]?.score ?? 0);
   const average =
-    total > 0 ? Math.round((attempts.reduce((s, a) => s + Number(a.score), 0) / total) * 100) / 100 : 0;
+    total > 0 ? Math.round((safeAttempts.reduce((s, a) => s + Number(a.score), 0) / total) * 100) / 100 : 0;
 
   const chartData = {
     labels: sorted.map((a) => (a.id === attempt.id ? `${a.student_name} (you)` : a.student_name)),
@@ -73,19 +143,17 @@ function ResultPage() {
       {
         label: "Score",
         data: sorted.map((a) => Number(a.score)),
-        backgroundColor: sorted.map((a) =>
-          a.id === attempt.id ? "rgba(59, 90, 220, 0.95)" : "rgba(148, 163, 184, 0.6)",
-        ),
+        backgroundColor: sorted.map((a) => (a.id === attempt.id ? "rgba(59, 90, 220, 0.95)" : "rgba(148, 163, 184, 0.6)")),
         borderRadius: 6,
       },
     ],
   };
 
   const stats = [
-    { label: "Score", value: `${Number(attempt.score)} / ${Number(attempt.max_score)}` },
-    { label: "Accuracy", value: `${Number(attempt.accuracy)}%` },
-    { label: "Rank", value: `${rank} of ${total}` },
-    { label: "Percentile", value: `${percentile}` },
+    { label: "Score", value: `${Number(attempt.score ?? 0)} / ${Number(attempt.max_score ?? 0)}` },
+    { label: "Accuracy", value: `${Number(attempt.accuracy ?? 0)}%` },
+    { label: "Rank", value: `${isNaN(rank) || rank <= 0 ? 0 : rank} of ${total}` },
+    { label: "Percentile", value: `${isNaN(percentile) ? 0 : percentile}` },
   ];
 
   return (
@@ -109,18 +177,31 @@ function ResultPage() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      {/* Light summary: total questions and CTA to detailed review (avoids fetching full questions) */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-medium text-muted-foreground">Total questions</p>
+          <p className="mt-2 font-display text-xl font-bold">{typeof totalQuestions === "number" ? totalQuestions : "—"}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-medium text-muted-foreground">Test info</p>
+          <p className="mt-2 text-sm">Duration: {test?.duration_minutes ?? "—"} minutes</p>
+          <p className="mt-1 text-sm">Scoring: +{test?.positive_marks ?? 0} / −{test?.negative_marks ?? 0}</p>
+        </div>
+      </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium text-success">Correct</p>
-          <p className="font-display text-xl font-bold">{attempt.correct_count}</p>
+          <p className="font-display text-xl font-bold">{attempt.correct_count ?? 0}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium text-destructive">Wrong</p>
-          <p className="font-display text-xl font-bold">{attempt.wrong_count}</p>
+          <p className="font-display text-xl font-bold">{attempt.wrong_count ?? 0}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium text-muted-foreground">Skipped</p>
-          <p className="font-display text-xl font-bold">{attempt.skipped_count}</p>
+          <p className="font-display text-xl font-bold">{attempt.skipped_count ?? 0}</p>
         </div>
       </div>
 
@@ -152,12 +233,17 @@ function ResultPage() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Button asChild>
+          <Link to="/review/$attemptId" params={{ attemptId }}>
+            View Detailed Solutions &amp; Analysis
+          </Link>
+        </Button>
+        <Button asChild>
           <Link to="/test/$testId" params={{ testId: test.id }}>
-            Retake test
+            Re-attempt Test
           </Link>
         </Button>
         <Button asChild variant="outline">
-          <Link to="/">Back to tests</Link>
+          <Link to="/">Back to All Tests</Link>
         </Button>
       </div>
     </div>

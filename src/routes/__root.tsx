@@ -10,6 +10,8 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import AuthModal from '@/components/AuthModal';
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
@@ -160,17 +162,45 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="flex min-h-screen flex-col font-sans">
-        <SiteHeader />
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">
-          TestPrep — practice mock tests with instant analysis.
-        </footer>
-      </div>
+      <AuthProvider>
+        <div className="flex min-h-screen flex-col font-sans">
+          <SiteHeaderWithAuth />
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">TestPrep — practice mock tests with instant analysis.</footer>
+          <AuthModal />
+        </div>
+      </AuthProvider>
       <Toaster position="top-center" richColors />
     </QueryClientProvider>
+  );
+}
+
+function SiteHeaderWithAuth() {
+  const auth = useAuth();
+  return (
+    <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <Link to="/" className="font-display text-lg font-bold tracking-tight">Test<span className="text-primary">Prep</span></Link>
+        <nav className="flex items-center gap-1 text-sm">
+          <Link to="/" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }} activeOptions={{ exact: true }}>Tests</Link>
+          <Link to="/attempted-tests" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Attempted Tests</Link>
+          <Link to="/admin" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Admin</Link>
+        </nav>
+        <div>
+          {auth.user ? (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-semibold">{(auth.user.email ?? '').charAt(0).toUpperCase()}</div>
+              <div className="text-sm text-muted-foreground">{auth.user.email}</div>
+              <button className="ml-3 rounded-md px-3 py-1.5 text-sm" onClick={() => void auth.signOut()}>Sign Out</button>
+            </div>
+          ) : (
+            <button className="rounded-md px-3 py-1.5 text-sm font-semibold" onClick={() => auth.openAuthModal()}>Login / Sign Up</button>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }

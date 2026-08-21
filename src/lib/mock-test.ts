@@ -9,6 +9,7 @@ export type Test = {
   positive_marks: number;
   negative_marks: number;
   max_attempts: number | null;
+  cutoff?: number | null;
   created_at: string;
 };
 
@@ -85,6 +86,17 @@ export async function fetchAttempts(testId: string): Promise<Attempt[]> {
     .order("score", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(normalizeAttempt);
+}
+
+/** Fetch only lightweight attempt score rows for a test (id and score, student_name optional) */
+export async function fetchAttemptScores(testId: string): Promise<Pick<Attempt, 'id' | 'score' | 'student_name'>[]> {
+  const { data, error } = await supabase
+    .from("attempts")
+    .select("id, score, student_name")
+    .eq("test_id", testId)
+    .order("score", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Pick<Attempt, 'id' | 'score' | 'student_name'>[];
 }
 
 export async function fetchAttempt(id: string): Promise<Attempt> {
