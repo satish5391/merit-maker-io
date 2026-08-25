@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTests } from "@/lib/mock-test";
 import { FileText, Star, Trophy, ShoppingBag, BookOpen, History as HistoryIcon } from "lucide-react";
 import { getAttemptHistory, type AttemptSummary } from "@/lib/attempt-history";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/attempted-tests")({
   component: AttemptedTestsPage,
@@ -31,11 +32,60 @@ export const Route = createFileRoute("/attempted-tests")({
 function AttemptedTestsPage() {
   // Hooks: must stay at top
   const [history, setHistory] = useState<AttemptSummary[]>([]);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
   const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: () => fetchTests() });
 
   useEffect(() => {
     setHistory(getAttemptHistory());
   }, []);
+
+  const categories = useMemo(
+    () => ["All Categories", ...Array.from(new Set(history.map((item) => item.category).filter(Boolean))).sort()],
+    [history],
+  );
+
+  const attemptsWithTests = useMemo(
+    () => history.map((item) => ({ item, test: tests?.find((test) => test.id === item.testId) })),
+    [history, tests],
+  );
+
+  const metrics = useMemo(() => {
+    const total = history.length;
+    const accuracy = total ? history.reduce((sum, item) => sum + Number(item.accuracy || 0), 0) / total : 0;
+    const averageScore = total
+      ? history.reduce((sum, item) => sum + (Number(item.maxScore) > 0 ? (Number(item.score) / Number(item.maxScore)) * 100 : 0), 0) / total
+      : 0;
+    const cleared = attemptsWithTests.filter(({ item, test }) => {
+      const cutoff = Number((test as any)?.cutoff_score ?? (test as any)?.cutoff ?? 0);
+      return Number(item.score) >= cutoff;
+    }).length;
+    return { total, accuracy, averageScore, cutoffRate: total ? (cleared / total) * 100 : 0 };
+  }, [attemptsWithTests, history]);
+
+  const filteredAttempts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return attemptsWithTests
+      .filter(({ item }) => categoryFilter === "All Categories" || item.category === categoryFilter)
+      .filter(({ item }) => !query || item.testTitle.toLowerCase().includes(query))
+      .sort((a, b) => {
+        if (sortOrder === "oldest") return new Date(a.item.submittedAt).getTime() - new Date(b.item.submittedAt).getTime();
+        if (sortOrder === "highest") return Number(b.item.score) / Math.max(1, Number(b.item.maxScore)) - Number(a.item.score) / Math.max(1, Number(a.item.maxScore));
+        if (sortOrder === "lowest") return Number(a.item.score) / Math.max(1, Number(a.item.maxScore)) - Number(b.item.score) / Math.max(1, Number(b.item.maxScore));
+        return new Date(b.item.submittedAt).getTime() - new Date(a.item.submittedAt).getTime();
+      });
+  }, [attemptsWithTests, categoryFilter, search, sortOrder]);
+
+  const trendData = useMemo(
+    () => [...history]
+      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      .map((item, index) => ({
+        name: `${index + 1}`,
+        score: Math.round((Number(item.score) / Math.max(1, Number(item.maxScore))) * 1000) / 10,
+      })),
+    [history],
+  );
 
   return (
     <main className="flex h-[calc(100vh-64px)] overflow-hidden">
@@ -87,6 +137,58 @@ function AttemptedTestsPage() {
             Every test you have submitted on this device, with score, accuracy and a detailed analysis.
           </p>
 
+          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              ["Total Tests Attempted", metrics.total.toString()],
+              ["Overall Accuracy", `${metrics.accuracy.toFixed(1)}%`],
+              ["Avg Score %", `${metrics.averageScore.toFixed(1)}%`],
+              ["Cutoff Cleared Rate", `${metrics.cutoffRate.toFixed(1)}%`],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+                <p className="mt-1 font-display text-2xl font-bold">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {trendData.length > 0 && (
+            <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-display text-lg font-semibold">Score progress</h2>
+                <span className="text-xs text-muted-foreground">Score percentage over time</span>
+              </div>
+              <div className="mt-4 h-52 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Score"]} labelFormatter={(label) => `Attempt ${label}`} />
+                    <Line type="monotone" dataKey="score" stroke="#0891b2" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          )}
+
+          <div className="mt-6 flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row">
+            <input
+              aria-label="Search attempts by test title"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by test title"
+              className="h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm"
+            />
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+              {categories.map((category) => <option key={category}>{category}</option>)}
+            </select>
+            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="highest">Highest Score</option>
+              <option value="lowest">Lowest Score</option>
+            </select>
+          </div>
+
           {history.length === 0 && (
             <div className="mt-6 rounded-xl border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">
@@ -100,8 +202,7 @@ function AttemptedTestsPage() {
           )}
 
           <div className="mt-6 space-y-4">
-            {history.map((item) => {
-              const test = tests?.find((t) => t.id === item.testId);
+            {filteredAttempts.map(({ item, test }) => {
               const score = Math.max(0, Number(item.score ?? 0));
               const maxScore = Math.max(1, Number(item.maxScore ?? (test as any)?.max_score ?? 100));
               const lowerCutoff = Number((test as any)?.cutoff ?? Math.round(maxScore * 0.4));
