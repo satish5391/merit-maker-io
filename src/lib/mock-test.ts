@@ -11,6 +11,7 @@ export type Test = {
   max_attempts: number | null;
   cutoff?: number | null;
   created_at: string;
+  access_type?: "free" | "paid" | "package_only" | null;
 };
 
 export type Question = {

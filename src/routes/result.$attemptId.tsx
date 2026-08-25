@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
 import { Bar } from "react-chartjs-2";
 import {
   BarElement,
@@ -65,6 +67,23 @@ function ResultPage() {
     queryKey: ["questionCount", attempt?.test_id],
     queryFn: () => countQuestions(String(attempt!.test_id)),
     enabled: Boolean(attempt?.test_id),
+  });
+
+  const { user } = useAuth();
+  const allowedAttempts = test?.max_attempts ?? 1;
+  const { data: userAttemptCount = 0 } = useQuery({
+    queryKey: ["user-test-attempt-count", user?.id, attempt?.test_id],
+    queryFn: async () => {
+      if (!user?.id || !attempt?.test_id) return 0;
+      const { data, error } = await supabase
+        .from("attempts")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("test_id", attempt.test_id);
+      if (error) throw error;
+      return data?.length ?? 0;
+    },
+    enabled: Boolean(user?.id && attempt?.test_id),
   });
 
   // Defensive sections parsing (hooks must be at top)
@@ -237,11 +256,17 @@ function ResultPage() {
             View Detailed Solutions &amp; Analysis
           </Link>
         </Button>
-        <Button asChild>
-          <Link to="/test/$testId" params={{ testId: test.id }}>
-            Re-attempt Test
-          </Link>
-        </Button>
+        {userAttemptCount < allowedAttempts ? (
+          <Button asChild>
+            <Link to="/test/$testId" params={{ testId: test.id }}>
+              Re-attempt Test
+            </Link>
+          </Button>
+        ) : (
+          <Button variant="secondary" disabled title={`Attempt Limit Reached (${userAttemptCount}/${allowedAttempts})`}>
+            Attempt Limit Reached ({userAttemptCount}/{allowedAttempts})
+          </Button>
+        )}
         <Button asChild variant="outline">
           <Link to="/">Back to All Tests</Link>
         </Button>

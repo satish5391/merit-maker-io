@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { TriangleAlert as AlertTriangle, ChevronLeft, ChevronRight, Timer, Flag } from "lucide-react";
@@ -43,6 +43,7 @@ function formatTime(total: number) {
 function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const { data: test, isLoading: isLoadingTest } = useQuery({ queryKey: ["test", testId], queryFn: () => fetchTest(testId) });
   const { data: questions, isLoading: isLoadingQuestions } = useQuery({
@@ -50,26 +51,7 @@ function TestPage() {
     queryFn: () => fetchQuestions(testId),
   });
 
-  // consume auth reactively from context
-  const { user } = useAuth();
-
-  // loading / null guards to avoid rendering when test data isn't ready
-  if (isLoadingTest || isLoadingQuestions || !test) {
-    return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
-  }
-
   const [name, setName] = useState("");
-  useEffect(() => {
-    const stored = getStudentName();
-    if (stored) setName(stored);
-  }, []);
-
-  const { data: myAttempts } = useQuery({
-    queryKey: ["my-attempts", name.trim()],
-    queryFn: () => fetchStudentAttempts(name.trim()),
-    enabled: name.trim().length > 0,
-  });
-  const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;
   const [started, setStarted] = useState(false);
   const [current, setCurrent] = useState(0);
   const [currentSection, setCurrentSection] = useState(0);
@@ -81,9 +63,60 @@ function TestPage() {
   const [sectionSecondsLeft, setSectionSecondsLeft] = useState<number | null>(null);
   const [sectionSubmitted, setSectionSubmitted] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const submittedRef = useRef(false);
 
-  const [isPaused, setIsPaused] = useState(false);
+  useEffect(() => {
+    if (user?.email) {
+      setName(user.email);
+      return;
+    }
+    const stored = getStudentName();
+    if (stored) setName(stored);
+  }, [user?.email]);
+
+  const { data: myAttempts } = useQuery({
+    queryKey: ["my-attempts", name.trim()],
+    queryFn: () => fetchStudentAttempts(name.trim()),
+    enabled: name.trim().length > 0 && !user?.id,
+  });
+
+  const { data: userAttempts = [] } = useQuery({
+    queryKey: ["test-user-attempts", user?.id, testId],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase
+        .from("attempts")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("test_id", testId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: Boolean(user?.id && testId),
+  });
+
+  const { data: packageAccess, isLoading: isLoadingPackageAccess } = useQuery({
+    queryKey: ["package-access", user?.id, testId],
+    queryFn: async () => {
+      if (!user?.id || !testId) return false;
+      const [{ data: purchases, error: purchasesError }, { data: packageLinks, error: linksError }] = await Promise.all([
+        supabase.from("user_purchases").select("item_id").eq("user_id", user.id).eq("item_type", "package").eq("payment_status", "completed"),
+        supabase.from("package_tests").select("package_id").eq("test_id", testId),
+      ]);
+      if (purchasesError) throw purchasesError;
+      if (linksError) throw linksError;
+      const purchasedPackageIds = new Set((purchases ?? []).map((purchase) => purchase.item_id));
+      return (packageLinks ?? []).some((link) => purchasedPackageIds.has(link.package_id));
+    },
+    enabled: Boolean(user?.id && test?.access_type === "package_only" && testId),
+  });
+
+  const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;
+  const effectiveAttemptCount = user?.id ? userAttempts.length : usedAttempts;
+  const maxAllowedAttempts = test?.max_attempts || 1;
+  const activeAttempt = user?.id ? userAttempts?.[0] ?? null : myAttempts?.[0] ?? null;
+  const activeAttemptId = activeAttempt?.id ?? null;
 
   // Defensive parse sections
   const rawSections = (test as any)?.sections;
@@ -118,8 +151,9 @@ function TestPage() {
     for (const s of effectiveSections) map[s.id] = [];
     const qs = Array.isArray(questions) ? questions : [];
     for (const qq of qs) {
-      const sid = (qq as any).section_id ?? effectiveSections[0].id;
-      if (!map[sid]) map[effectiveSections[0].id].push(qq);
+      const fallbackSectionId = effectiveSections[0]?.id ?? "section-default";
+      const sid = (qq as any).section_id ?? fallbackSectionId;
+      if (!map[sid]) map[fallbackSectionId]?.push(qq);
       else map[sid].push(qq);
     }
     return map;
@@ -182,12 +216,11 @@ function TestPage() {
         }
 
        // 1. Defensively resolve current user session
-        const currentUserId = user?.id || (await supabase.auth.getSession()).data.session?.user?.id || null;
         const studentIdentifier = user?.email || name.trim() || 'Student';
 
         const insertPayload = {
           test_id: test.id,
-          user_id: currentUserId, // Guarantees authenticated UUID is attached
+          user_id: user?.id || null,
           student_name: studentIdentifier,
           score: Math.round(score * 100) / 100,
           max_score: orderedQuestions.length * Number(test.positive_marks),
@@ -293,16 +326,46 @@ useEffect(() => {
     setVisited((v) => ({ ...v, [q.id]: true }));
   }, [current, started, orderedQuestions]);
 
+  useEffect(() => {
+    if (!started) return;
+    const maxIndex = Math.max((orderedQuestions?.length ?? 0) - 1, 0);
+    if (current < 0 || current > maxIndex) {
+      setCurrent(Math.max(0, Math.min(current, maxIndex)));
+    }
+  }, [started, current, orderedQuestions?.length]);
+
   // active section and questions derived from computed memos
   const activeSection = effectiveSections[currentSection] ?? effectiveSections[0];
   const activeSectionQuestions = sectionQuestionMap[activeSection?.id ?? effectiveSections[0].id] ?? [];
 
-  if (!test || !questions) {
+  if (!test || !questions || questions.length === 0) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
   }
 
-  const limitReached =
-    test.max_attempts !== null && name.trim().length > 0 && usedAttempts >= test.max_attempts;
+  if (test.access_type === "package_only" && (isLoadingPackageAccess || !packageAccess)) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16">
+        <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
+          <Badge variant="secondary">PACKAGE ONLY</Badge>
+          <h1 className="mt-3 font-display text-2xl font-bold">Package access required</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            This test is exclusive to a package bundle. Please purchase the series to access this test.
+          </p>
+          <Button asChild className="mt-6">
+            <Link to="/">View Test Series &amp; Combos</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentIndex = current >= 0 && current < (orderedQuestions?.length || 0) ? current : 0;
+  const currentQuestion = orderedQuestions?.[currentIndex] ?? questions?.[currentIndex] ?? null;
+  const currentQuestionId = currentQuestion?.id ?? questions?.[currentIndex]?.id ?? null;
+
+  const limitReached = user?.id
+    ? effectiveAttemptCount >= maxAllowedAttempts
+    : test.max_attempts !== null && name.trim().length > 0 && usedAttempts >= test.max_attempts;
 
   if (!started) {
     return (
@@ -318,7 +381,7 @@ useEffect(() => {
             <li>
               {test.max_attempts === null
                 ? "Unlimited attempts allowed."
-                : `Attempts: ${usedAttempts}/${test.max_attempts}`}
+                : `Attempts: ${effectiveAttemptCount}/${test.max_attempts || 1}`}
             </li>
           </ul>
           <div className="mt-6">
@@ -329,34 +392,63 @@ useEffect(() => {
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your name"
               className="mt-1.5"
+              disabled={Boolean(user?.email)}
             />
           </div>
-          <Button
-            className="mt-6 w-full"
-            size="lg"
-            disabled={limitReached}
+
+          {limitReached && (
+            <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              You have exhausted all allowed attempts ({test.max_attempts ?? 1}/{test.max_attempts ?? 1}) for this test.
+            </div>
+          )}
+
+          {!limitReached && (
+            <Button
+              className="mt-6 w-full"
+              size="lg"
               onClick={() => {
-              if (limitReached) return;
-              setStudentName(name.trim());
-              setSecondsLeft(test.duration_minutes * 60);
-              const sectionalEnabled = !!(test as any)?.sectional_timing;
-              if (sectionalEnabled) {
-                const first = sections[0];
-                setSectionSecondsLeft(first?.duration_minutes ? first.duration_minutes * 60 : null);
-              } else {
-                setSectionSecondsLeft(null);
-              }
-              setStarted(true);
-            }}
-          >
-            {limitReached ? "Attempt limit reached" : usedAttempts > 0 ? "Retake test" : "Start test"}
-          </Button>
+                setStudentName(name.trim());
+                setSecondsLeft(test.duration_minutes * 60);
+                const sectionalEnabled = !!(test as any)?.sectional_timing;
+                if (sectionalEnabled) {
+                  const first = sections[0];
+                  setSectionSecondsLeft(first?.duration_minutes ? first.duration_minutes * 60 : null);
+                } else {
+                  setSectionSecondsLeft(null);
+                }
+                setStarted(true);
+              }}
+            >
+              {effectiveAttemptCount > 0 ? "Retake test" : "Start test"}
+            </Button>
+          )}
+
+          {limitReached && (
+            <div className="mt-4 flex flex-col gap-3">
+              <Button className="w-full" size="lg" disabled>
+                Start test
+              </Button>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/">Back to Dashboard</Link>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  const q = orderedQuestions[current]!;
+  if (!currentQuestion) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">
+        Loading questions or no questions available for this test.
+      </div>
+    );
+  }
+
+  const questionId = currentQuestionId ?? currentQuestion?.id ?? null;
+
+  const q = currentQuestion;
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = orderedQuestions.length;
   const warning = secondsLeft <= 120 && secondsLeft > 0; // below 2 minutes
@@ -452,7 +544,7 @@ useEffect(() => {
           <h2 className="mt-2 text-base font-medium md:text-lg">{q.body}</h2>
 
           <div className="mt-5 space-y-3">
-            {q.options.map((opt, i) => {
+            {(Array.isArray(q.options) ? q.options : []).map((opt: string, i: number) => {
               const selected = answers[q.id] === i;
               return (
                 <button
@@ -531,9 +623,10 @@ useEffect(() => {
 
           <div className="mt-3 grid grid-cols-6 gap-2 lg:grid-cols-5">
             {activeSectionQuestions.map((item, i) => {
-              const isVisited = Boolean(visited[item.id]);
-              const isMarked = Boolean(marked[item.id]);
-              const isAnswered = answers[item.id] !== undefined;
+              const itemId = item?.id ?? null;
+              const isVisited = itemId ? Boolean(visited[itemId]) : false;
+              const isMarked = itemId ? Boolean(marked[itemId]) : false;
+              const isAnswered = itemId ? answers[itemId] !== undefined : false;
               const globalIndex = getSectionStartIndex(currentSection) + i;
 
               // priority: marked+answered -> marked-with-dot, marked -> purple, answered -> green, visited-not-answered -> red, not visited -> gray
@@ -546,7 +639,7 @@ useEffect(() => {
 
               return (
                 <button
-                  key={item.id}
+                  key={itemId ?? `question-${i}`}
                   type="button"
                   onClick={() => setCurrent(globalIndex)}
                   className={cn(classes, globalIndex === current && "ring-2 ring-ring ring-offset-1")}
@@ -590,9 +683,10 @@ useEffect(() => {
                   // Save & Next (within section when sectional timing enabled)
                   const sectionalEnabled = !!(test as any)?.sectional_timing;
                   const si = currentSection;
+                  const sec = sections?.[si];
                   const start = getSectionStartIndex(si);
-                  const end = start + (sectionQuestionMap[sections[si].id]?.length ?? 1) - 1;
-                  if (sectionSubmitted[activeSection.id]) return;
+                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
+                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
                   if (current < (sectionalEnabled ? end : totalQuestions - 1)) setCurrent((c) => c + 1);
                 }}
               >
@@ -601,13 +695,15 @@ useEffect(() => {
               <Button
                 onClick={() => {
                   // Mark for review & Next (within section)
-                  if (sectionSubmitted[activeSection.id]) return;
-                  const id = q.id;
+                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
+                  const id = questionId ?? q?.id ?? null;
+                  if (!id) return;
                   setMarked((m) => ({ ...m, [id]: true }));
                   const sectionalEnabled = !!(test as any)?.sectional_timing;
                   const si = currentSection;
+                  const sec = sections?.[si];
                   const start = getSectionStartIndex(si);
-                  const end = start + (sectionQuestionMap[sections[si].id]?.length ?? 1) - 1;
+                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
                   if (current < (sectionalEnabled ? end : totalQuestions - 1)) setCurrent((c) => c + 1);
                 }}
                 variant="outline"
@@ -617,10 +713,11 @@ useEffect(() => {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  if (sectionSubmitted[activeSection.id]) return;
+                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
                   setAnswers((prev) => {
                     const next = { ...prev };
-                    delete next[q.id];
+                    const responseKey = questionId ?? q?.id ?? null;
+                    if (responseKey) delete next[responseKey];
                     return next;
                   });
                 }}
@@ -631,9 +728,10 @@ useEffect(() => {
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    if (sectionSubmitted[activeSection.id]) return;
+                      if (sectionSubmitted[activeSection?.id ?? ""]) return;
                     const si = currentSection;
-                    const sec = sections[si];
+                      const sec = sections?.[si];
+                      if (!sec) return;
                     setSectionSubmitted((m) => ({ ...m, [sec.id]: true }));
                     const nextIndex = si + 1;
                     if (nextIndex < sections.length) {
@@ -668,8 +766,9 @@ Submit Section &amp; Next Section
                 onClick={() => {
                   const sectionalEnabled = !!(test as any)?.sectional_timing;
                   const si = currentSection;
+                  const sec = sections?.[si];
                   const start = getSectionStartIndex(si);
-                  const end = start + (sectionQuestionMap[sections[si].id]?.length ?? 1) - 1;
+                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
                   if (sectionalEnabled) {
                     if (current < end) setCurrent((c) => c + 1);
                   } else {
@@ -681,8 +780,9 @@ Submit Section &amp; Next Section
                 {(() => {
                   const sectionalEnabled = !!(test as any)?.sectional_timing;
                   const si = currentSection;
+                  const sec = sections?.[si];
                   const start = getSectionStartIndex(si);
-                  const end = start + (sectionQuestionMap[sections[si].id]?.length ?? 1) - 1;
+                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
                   if (sectionalEnabled) return <span>Next <ChevronRight className="ml-1 size-4" /></span>;
                   return current < totalQuestions - 1 ? <span>Next <ChevronRight className="ml-1 size-4" /></span> : <span>{submitting ? "Submitting…" : "Submit test"}</span>;
                 })()}

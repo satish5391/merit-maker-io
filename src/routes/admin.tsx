@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchTests, fetchQuestions } from "@/lib/mock-test";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,19 @@ const CATEGORY_SUGGESTIONS = [
   "General",
 ];
 
+const BULK_UPLOAD_HEADERS = [
+  "section",
+  "question_text",
+  "option_a",
+  "option_b",
+  "option_c",
+  "option_d",
+  "correct_answer",
+  "marks",
+  "negative_marks",
+  "explanation",
+];
+
 function Admin() {
   const qc = useQueryClient();
   const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: fetchTests });
@@ -74,7 +88,7 @@ function Admin() {
   const [cutoff, setCutoff] = useState<number | "">("");
   const [cutoffMax, setCutoffMax] = useState<number | "">("");
   const [maxAttempts, setMaxAttempts] = useState<string>("1");
-  const [isFree, setIsFree] = useState(true);
+  const [accessType, setAccessType] = useState<"free" | "paid" | "package_only">("free");
   const [price, setPrice] = useState<number | "">("");
   const [discountPrice, setDiscountPrice] = useState<number | "">("");
   const [questions, setQuestions] = useState<Draft[]>([emptyDraft()]);
@@ -93,7 +107,7 @@ function Admin() {
     setNegative(0.5);
     setCutoff("");
     setCutoffMax("");
-    setIsFree(true);
+    setAccessType("free");
     setPrice("");
     setDiscountPrice("");
     setMaxAttempts("1");
@@ -130,9 +144,10 @@ function Admin() {
               ? null
               : Math.round(Number(cutoff) * 1.15) || Number(cutoff) + 1
             : Number(cutoffMax),
-        is_free: Boolean(isFree),
-        price: isFree ? null : (price === "" ? null : Number(price)),
-        discount_price: isFree ? null : (discountPrice === "" ? null : Number(discountPrice)),
+        access_type: accessType,
+        is_free: accessType === "free",
+        price: accessType === "paid" ? (price === "" ? null : Number(price)) : null,
+        discount_price: accessType === "paid" ? (discountPrice === "" ? null : Number(discountPrice)) : null,
         max_attempts: parsedAttempts(),
         sectional_timing: sectionalTiming,
         sections: sections,
@@ -199,7 +214,7 @@ function Admin() {
       setNegative(Number(test.negative_marks));
       setCutoff((test as any).cutoff ?? "");
       setCutoffMax((test as any).cutoff_max ?? "");
-      setIsFree((test as any).is_free ?? true);
+      setAccessType((test as any).access_type ?? ((test as any).is_free === false ? "paid" : "free"));
       setPrice((test as any).price ?? "");
       setDiscountPrice((test as any).discount_price ?? "");
       setMaxAttempts(test.max_attempts === null ? "Unlimited" : String(test.max_attempts));
@@ -240,6 +255,89 @@ function Admin() {
 
   const patch = (i: number, next: Partial<Draft>) =>
     setQuestions((prev) => prev.map((q, idx) => (idx === i ? { ...q, ...next } : q)));
+
+  const downloadBulkTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      BULK_UPLOAD_HEADERS,
+      ["Default", "What is 2 + 2?", "3", "4", "5", "6", "B", "2", "0.5", "Add the numbers together."],
+    ]);
+    const csv = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sample-questions-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importBulkQuestions = async (file: File) => {
+    if (!editingId) {
+      toast.error("Save or select a test before importing questions.");
+      return;
+    }
+
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
+      const normalizedRows = rows.map((row) =>
+        Object.fromEntries(Object.entries(row).map(([key, value]) => [key.trim().toLowerCase(), String(value ?? "").trim()])),
+      );
+      const invalidRows: number[] = [];
+      const parsedQuestions = normalizedRows.flatMap((row, index) => {
+        const options = [row.option_a, row.option_b, row.option_c, row.option_d];
+        if (!row.question_text || options.some((option) => !option) || !row.correct_answer) {
+          invalidRows.push(index + 2);
+          return [];
+        }
+
+        const answer = row.correct_answer.toLowerCase();
+        const letterIndex = ["a", "b", "c", "d"].indexOf(answer.replace(/[^a-d]/g, ""));
+        const numericIndex = Number(answer) - 1;
+        const textIndex = options.findIndex((option) => option.toLowerCase() === answer);
+        const correctIndex = letterIndex >= 0 ? letterIndex : numericIndex >= 0 && numericIndex < 4 ? numericIndex : textIndex;
+        if (correctIndex < 0 || correctIndex > 3) {
+          invalidRows.push(index + 2);
+          return [];
+        }
+
+        const sectionName = row.section || sections[0]?.name || "Default";
+        const section = sections.find((item) => item.id === sectionName || item.name.trim().toLowerCase() === sectionName.toLowerCase());
+        return [{
+          test_id: editingId,
+          position: questions.length + index + 1,
+          body: row.question_text,
+          options,
+          correct_index: correctIndex,
+          explanation: row.explanation || "",
+          section_id: section?.id ?? sections[0]?.id,
+        }];
+      });
+
+      if (invalidRows.length) {
+        throw new Error(`Invalid required fields or correct answer in row(s): ${invalidRows.join(", ")}`);
+      }
+      if (!parsedQuestions.length) throw new Error("The file contains no question rows.");
+
+      const { error } = await supabase.from("questions").insert(parsedQuestions);
+      if (error) throw error;
+      setQuestions((previous) => [
+        ...previous.filter((question) => question.body.trim()),
+        ...parsedQuestions.map((question) => ({
+          body: question.body,
+          options: question.options,
+          correct_index: question.correct_index,
+          explanation: question.explanation,
+          sectionId: question.section_id,
+        })),
+      ]);
+      qc.invalidateQueries({ queryKey: ["questions", editingId] });
+      toast.success(`Successfully imported ${parsedQuestions.length} questions!`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not import questions");
+    }
+  };
 
   // Packages & combos manager state
   const [activeTab, setActiveTab] = useState<'tests' | 'packages'>('tests');
@@ -448,16 +546,20 @@ function Admin() {
               <Label>Test Type</Label>
               <div className="mt-1 flex items-center gap-3">
                 <label className="flex items-center gap-2">
-                  <input type="radio" name="test-type" checked={isFree} onChange={() => setIsFree(true)} />
-                  <span className="text-sm">Free</span>
+                  <input type="radio" name="test-type" checked={accessType === "free"} onChange={() => setAccessType("free")} />
+                  <span className="text-sm">Free (Accessible to everyone)</span>
                 </label>
                 <label className="flex items-center gap-2">
-                  <input type="radio" name="test-type" checked={!isFree} onChange={() => setIsFree(false)} />
-                  <span className="text-sm">Paid</span>
+                  <input type="radio" name="test-type" checked={accessType === "paid"} onChange={() => setAccessType("paid")} />
+                  <span className="text-sm">Paid (Standalone)</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="test-type" checked={accessType === "package_only"} onChange={() => setAccessType("package_only")} />
+                  <span className="text-sm">Package Only (Combo Exclusive)</span>
                 </label>
               </div>
 
-              {!isFree && (
+              {accessType === "paid" && (
                 <div className="mt-3 grid gap-2">
                   <Label htmlFor="price">Original Price (₹)</Label>
                   <Input id="price" type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))} />
@@ -569,12 +671,30 @@ function Admin() {
               </div>
             ))}
 
-            <Button
-              variant="outline"
-              onClick={() => setQuestions((prev) => [...prev, { ...emptyDraft(), sectionId: sections[0]?.id }])}
-            >
-              <Plus className="mr-1 size-4" /> Add question
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setQuestions((prev) => [...prev, { ...emptyDraft(), sectionId: sections[0]?.id }])}
+              >
+                <Plus className="mr-1 size-4" /> Add question
+              </Button>
+              <Button type="button" variant="outline" onClick={downloadBulkTemplate}>
+                Download Sample CSV Template
+              </Button>
+              <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted">
+                Bulk Upload CSV / Excel
+                <input
+                  type="file"
+                  accept=".csv,.xlsx"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void importBulkQuestions(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </div>
 
           <Button

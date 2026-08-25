@@ -21,6 +21,7 @@ export type Database = {
           correct_count: number
           created_at: string
           id: string
+          user_id: string | null
           max_score: number
           score: number
           skipped_count: number
@@ -40,6 +41,7 @@ export type Database = {
           skipped_count?: number
           student_name?: string
           test_id: string
+          user_id?: string | null
           time_taken_seconds?: number
           wrong_count?: number
         }
@@ -54,6 +56,7 @@ export type Database = {
           skipped_count?: number
           student_name?: string
           test_id?: string
+          user_id?: string | null
           time_taken_seconds?: number
           wrong_count?: number
         }
@@ -76,6 +79,7 @@ export type Database = {
           id: string
           options: Json
           position: number
+          section_id: string | null
           test_id: string
         }
         Insert: {
@@ -86,6 +90,7 @@ export type Database = {
           id?: string
           options?: Json
           position?: number
+          section_id?: string | null
           test_id: string
         }
         Update: {
@@ -96,6 +101,7 @@ export type Database = {
           id?: string
           options?: Json
           position?: number
+          section_id?: string | null
           test_id?: string
         }
         Relationships: [
@@ -119,6 +125,7 @@ export type Database = {
           positive_marks: number
           subject: string
           title: string
+          access_type: "free" | "paid" | "package_only"
         }
         Insert: {
           category?: string
@@ -130,6 +137,7 @@ export type Database = {
           positive_marks?: number
           subject?: string
           title: string
+          access_type?: "free" | "paid" | "package_only"
         }
         Update: {
           category?: string
@@ -141,7 +149,50 @@ export type Database = {
           positive_marks?: number
           subject?: string
           title?: string
+          access_type?: "free" | "paid" | "package_only"
         }
+        Relationships: []
+      }
+      user_purchases: {
+        Row: {
+          id: string
+          user_id: string
+          item_type: string
+          item_id: string
+          amount_paid: number | null
+          payment_status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          item_type: string
+          item_id: string
+          amount_paid?: number | null
+          payment_status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          item_type?: string
+          item_id?: string
+          amount_paid?: number | null
+          payment_status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      package_tests: {
+        Row: { id: string; package_id: string; test_id: string; created_at: string }
+        Insert: { id?: string; package_id: string; test_id: string; created_at?: string }
+        Update: { id?: string; package_id?: string; test_id?: string; created_at?: string }
+        Relationships: []
+      }
+      test_packages: {
+        Row: { id: string; title: string; description: string; category: string; price: number | null; discount_price: number | null; is_combo: boolean; is_active: boolean; created_at: string }
+        Insert: { id?: string; title: string; description?: string; category?: string; price?: number | null; discount_price?: number | null; is_combo?: boolean; is_active?: boolean; created_at?: string }
+        Update: { id?: string; title?: string; description?: string; category?: string; price?: number | null; discount_price?: number | null; is_combo?: boolean; is_active?: boolean; created_at?: string }
         Relationships: []
       }
     }

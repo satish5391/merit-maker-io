@@ -92,6 +92,11 @@ function Home() {
     });
   };
 
+  const showPackages = () => {
+    handleSetView("packages");
+    requestAnimationFrame(() => document.getElementById("tests")?.scrollIntoView({ behavior: "smooth" }));
+  };
+
   const handleSetCategory = (cat: string) => {
     setActiveCategory((prev) => {
       if (prev === cat) return prev;
@@ -140,7 +145,7 @@ function Home() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const { user, openAuthModal } = useAuth();
-  const resolvedUserId = user?.id ?? student;
+  const resolvedUserId = user?.id ?? null;
   const { data: userPurchases, refetch: refetchPurchases } = useQuery({
     queryKey: ["user-purchases", resolvedUserId],
     queryFn: async () => {
@@ -161,9 +166,18 @@ function Home() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "duration" | "questions">("newest");
 
-  const { data: myAttempts } = useQuery({
+  const { data: myAttempts = [] } = useQuery({
     queryKey: ["my-attempts", resolvedUserId],
-    queryFn: () => fetchStudentAttempts(resolvedUserId),
+    queryFn: async () => {
+      if (!resolvedUserId) return [];
+      const { data, error } = await supabase
+        .from("attempts")
+        .select("*")
+        .eq("user_id", resolvedUserId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
     enabled: Boolean(resolvedUserId),
   });
 
@@ -479,6 +493,10 @@ function Home() {
                   .map((t) => {
                     const isPaid = !((t as any).is_free === true || Number((t as any).price ?? 0) === 0);
                     const bought = unlockedIds.has(t.id);
+                    const userAttemptCount = (myAttempts ?? []).filter((a: any) => a.test_id === t.id).length;
+                    const attemptLimit = t.max_attempts || 1;
+                    const limitReached = userAttemptCount >= attemptLimit;
+                    const canAccessPaidTest = bought && !limitReached;
                     return (
                       <article key={t.id} className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
                         <div className="flex flex-wrap gap-2">
@@ -501,9 +519,16 @@ function Home() {
                                 )}
                               </div>
                         <div className="mt-3 text-sm text-muted-foreground">₹{(t as any).price ?? '—'}</div>
+                        <div className="mt-3">
+                          <Badge variant={limitReached ? 'destructive' : 'outline'} className="w-fit">Attempts: {userAttemptCount}/{attemptLimit}</Badge>
+                        </div>
                         <div className="mt-4 flex items-end justify-end">
                           {bought ? (
-                            <Button asChild size="sm"><Link to="/test/$testId" params={{ testId: t.id }}>Take test</Link></Button>
+                            canAccessPaidTest ? (
+                              <Button asChild size="sm"><Link to="/test/$testId" params={{ testId: t.id }}>{userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
+                            ) : (
+                              <Button size="sm" disabled>Attempt Limit Reached</Button>
+                            )
                           ) : (
                             <Button size="sm" onClick={() => openPurchaseModal(t, 'test')}>Unlock Test</Button>
                           )}
@@ -583,16 +608,19 @@ function Home() {
                     });
 
                   return filtered.map((t) => {
-                    const used = (myAttempts ?? []).filter((a) => a.test_id === t.id).length;
-                    const limitReached = t.max_attempts !== null && used >= t.max_attempts;
-                    const isPaid = !((t as any).is_free === true || Number((t as any).price ?? 0) === 0);
+                    const userAttemptCount = (myAttempts ?? []).filter((a: any) => a.test_id === t.id).length;
+                    const attemptLimit = t.max_attempts || 1;
+                    const limitReached = t.max_attempts !== null && userAttemptCount >= attemptLimit;
+                    const accessType = (t as any).access_type ?? ((t as any).is_free === true || Number((t as any).price ?? 0) === 0 ? "free" : "paid");
+                    const isPackageOnly = accessType === "package_only";
+                    const isPaid = accessType === "paid";
                     const purchased = unlockedIds.has(t.id);
                     return (
                       <article key={t.id} className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
                         <div className="flex flex-wrap gap-2">
                           <Badge className="w-fit">{t.category}</Badge>
                           <Badge variant="secondary" className="w-fit">{t.subject}</Badge>
-                          {isPaid && <Badge variant="destructive">PAID</Badge>}
+                          {isPackageOnly ? <Badge variant="secondary">PACKAGE ONLY</Badge> : isPaid && <Badge variant="destructive">PAID</Badge>}
                         </div>
                         <h3 className="mt-3 font-display text-lg font-semibold leading-snug">{t.title}</h3>
                         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm text-muted-foreground">
@@ -602,19 +630,23 @@ function Home() {
                           <div className="flex items-center gap-2"><Users className="size-4" /> {t.attemptCount} attempts</div>
                         </dl>
                         <div className="mt-3">
-                          <Badge variant={limitReached ? 'destructive' : 'outline'} className="w-fit"><Repeat className="mr-1 size-3" />Attempts: {used}/{t.max_attempts === null ? '∞' : t.max_attempts}</Badge>
+                          <Badge variant={limitReached ? 'destructive' : 'outline'} className="w-fit"><Repeat className="mr-1 size-3" />Attempts: {userAttemptCount}/{attemptLimit}</Badge>
                         </div>
 
-                        {limitReached ? (
-                          <Button className="mt-5 w-full" disabled>Attempt limit reached</Button>
+                        {isPackageOnly && !purchased ? (
+                          <Button className="mt-5 w-full" onClick={showPackages}>Unlock via Series</Button>
                         ) : isPaid ? (
                           purchased ? (
-                            <Button asChild className="mt-5 w-full"><Link to="/test/$testId" params={{ testId: t.id }}>Start Test</Link></Button>
+                            userAttemptCount >= attemptLimit ? (
+                              <Button className="mt-5 w-full" disabled>Attempt Limit Reached</Button>
+                            ) : (
+                              <Button asChild className="mt-5 w-full"><Link to="/test/$testId" params={{ testId: t.id }}>{userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
+                            )
                           ) : (
                             <Button className="mt-5 w-full" onClick={() => openPurchaseModal(t, 'test')}>Unlock Test</Button>
                           )
                         ) : (
-                          <Button asChild className="mt-5 w-full" disabled={t.questionCount === 0}><Link to="/test/$testId" params={{ testId: t.id }}>{t.questionCount === 0 ? 'No questions yet' : used > 0 ? 'Retake test' : 'Take test'}</Link></Button>
+                          <Button asChild className="mt-5 w-full" disabled={t.questionCount === 0}><Link to="/test/$testId" params={{ testId: t.id }}>{t.questionCount === 0 ? 'No questions yet' : userAttemptCount > 0 ? 'Retake test' : 'Take test'}</Link></Button>
                         )}
                       </article>
                     );
