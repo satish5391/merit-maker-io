@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DEFAULT_TARGET_EXAM, TARGET_EXAM_OPTIONS_WITH_LABELS } from "@/constants/exams";
 import { useAuth } from "@/context/AuthContext";
 import { getAttemptHistory } from "@/lib/attempt-history";
 import { getDisplayName, type UserProfile } from "@/lib/user-profile";
-
-const TARGET_EXAMS = ["SSC CGL", "Banking", "Railways", "UPSC CSE", "State PSC", "SSC CHSL", "Defence"]; 
 
 export default function ProfilePage() {
   const { user, profile, updateProfile } = useAuth();
@@ -21,7 +20,7 @@ export default function ProfilePage() {
     name: "",
     email: user?.email ?? "",
     phone: "+91 ",
-    targetExam: "SSC CGL",
+    targetExam: DEFAULT_TARGET_EXAM,
     avatarUrl: "",
     joinedDate: new Date().toISOString(),
     subscriptionTier: "Free",
@@ -79,6 +78,32 @@ export default function ProfilePage() {
 
   const initials = (form.name || user.email || "Student").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.includes("image/")) {
+      toast.error("Please choose a valid image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const nextAvatarUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!nextAvatarUrl) return;
+
+      const nextProfile = updateProfile({
+        ...form,
+        avatarUrl: nextAvatarUrl,
+      });
+      setForm(nextProfile);
+      toast.success("Profile picture updated.");
+    };
+
+    reader.readAsDataURL(file);
+    event.target.value = "";
+  };
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
       <div className="mb-6 flex items-center justify-between gap-3">
@@ -93,10 +118,17 @@ export default function ProfilePage() {
           <Card className="overflow-hidden">
             <div className="bg-gradient-to-br from-cyan-500 via-sky-500 to-blue-700 p-6 text-white">
               <div className="flex items-center justify-between">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/70 bg-white/10 text-xl font-bold">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/70 bg-white/10 text-xl font-bold overflow-hidden">
                   {form.avatarUrl ? <img src={form.avatarUrl} alt={form.name} className="h-full w-full rounded-full object-cover" /> : initials}
                 </div>
                 <Badge className="border border-white/30 bg-white/10 text-white">{currentBadge}</Badge>
+              </div>
+
+              <div className="mt-3">
+                <input id="profile-photo-input" type="file" accept="image/png, image/jpeg" className="hidden" onChange={handlePhotoChange} />
+                <label htmlFor="profile-photo-input" className="inline-flex cursor-pointer items-center rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold text-white/90 transition hover:bg-white/25">
+                  Change Photo
+                </label>
               </div>
 
               <h2 className="mt-5 text-2xl font-semibold">{form.name || getDisplayName(undefined, user.email)}</h2>
@@ -195,9 +227,9 @@ export default function ProfilePage() {
                     <SelectValue placeholder="Select exam" />
                   </SelectTrigger>
                   <SelectContent>
-                    {TARGET_EXAMS.map((exam) => (
-                      <SelectItem key={exam} value={exam}>
-                        {exam}
+                    {TARGET_EXAM_OPTIONS_WITH_LABELS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

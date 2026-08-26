@@ -1,3 +1,5 @@
+import { DEFAULT_TARGET_EXAM } from "@/constants/exams";
+
 export type SubscriptionTier = "Free" | "Pro" | "Pass_Pro";
 
 export type UserProfile = {
@@ -24,7 +26,7 @@ export function getDefaultProfile(email = ""): UserProfile {
     name: email ? email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (match) => match.toUpperCase()) : "Rankdon Student",
     email,
     phone: "+91 ",
-    targetExam: "SSC CGL",
+    targetExam: DEFAULT_TARGET_EXAM,
     avatarUrl: "",
     joinedDate: new Date().toISOString(),
     subscriptionTier: "Free",

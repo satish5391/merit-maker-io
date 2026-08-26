@@ -151,7 +151,7 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <button className="rounded-md px-3 py-1.5 text-sm font-semibold" onClick={() => auth.openAuthModal()}>
+            <button className="rounded-md px-3 py-1.5 text-sm font-semibold" onClick={() => auth.openAuthModal('signin')}>
               Login / Sign Up
             </button>
           )}
