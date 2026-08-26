@@ -14,17 +14,18 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { clearTestSession, readTestSession, writeTestSession } from "@/lib/test-session";
 
 export const Route = createFileRoute("/test/$testId")({
   head: () => ({
     meta: [
-      { title: "Attempt Mock Test — Timed Exam | TestPrep" },
+      { title: "Attempt Mock Test — Timed Exam | Rankdon" },
       {
         name: "description",
         content:
           "Attempt a timed mock test with a live countdown, question palette and automatic submission when time runs out.",
       },
-      { property: "og:title", content: "Attempt Mock Test — TestPrep" },
+      { property: "og:title", content: "Attempt Mock Test — Rankdon" },
       {
         property: "og:description",
         content: "Timed mock test with countdown, question palette and auto-submit.",
@@ -38,6 +39,13 @@ function formatTime(total: number) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatDuration(total: number) {
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function TestPage() {
@@ -64,6 +72,10 @@ function TestPage() {
   const [sectionSubmitted, setSectionSubmitted] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [sectionAlertOpen, setSectionAlertOpen] = useState(false);
+  const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
+  const [finalSummaryOpen, setFinalSummaryOpen] = useState(false);
+  const hydratedSessionRef = useRef(false);
   const submittedRef = useRef(false);
 
   useEffect(() => {
@@ -256,6 +268,7 @@ function TestPage() {
           });
         }
         if (auto) toast.info("Time's up — your test was submitted automatically.");
+        clearTestSession(testId, resolvedUserId);
         navigate({ to: "/result/$attemptId", params: { attemptId: data.id } });
       } catch (e) {
         submittedRef.current = false;
@@ -266,46 +279,38 @@ function TestPage() {
     [answers, name, navigate, orderedQuestions, secondsLeft, test],
   );
 
-useEffect(() => {
+  const sectionalTimingEnabled = Boolean((test as any)?.sectional_timing || (test as any)?.has_sectional_timing);
+
+  useEffect(() => {
     if (!started || isPaused) return;
 
     const id = setInterval(() => {
-      // 1. Handle overall test timer
-      setSecondsLeft((s) => {
-        if (s <= 1) {
+      const tick = (remaining: number) => {
+        if (remaining <= 1) {
           clearInterval(id);
-          void submit(true);
+          if (sectionalTimingEnabled && sectionSecondsLeft !== null) {
+            const nextSection = currentSection + 1;
+            const expiredSection = effectiveSections[currentSection];
+            if (expiredSection) setSectionSubmitted((submitted) => ({ ...submitted, [expiredSection.id]: true }));
+            if (nextSection < effectiveSections.length) {
+              setCurrentSection(nextSection);
+              setCurrent(getSectionStartIndex(nextSection));
+              const next = effectiveSections[nextSection];
+              setSectionSecondsLeft(Number(next?.duration_minutes ?? next?.duration ?? 0) * 60 || null);
+            } else {
+              void submit(true);
+            }
+          } else {
+            void submit(true);
+          }
           return 0;
         }
-        return s - 1;
-      });
-
-      // 2. Handle section timer if present
-      if (sectionSecondsLeft !== null) {
-        setSectionSecondsLeft((ss) => {
-          if (ss === null) return null;
-          if (ss <= 1) {
-            // Section expired -> submit section and advance
-            const secs = effectiveSections;
-            const sec = secs[currentSection];
-            if (sec) {
-              setSectionSubmitted((m) => ({ ...m, [sec.id]: true }));
-              const nextIndex = currentSection + 1;
-              if (nextIndex < secs.length) {
-                setCurrentSection(nextIndex);
-                const next = secs[nextIndex];
-                setSectionSecondsLeft(next?.duration_minutes ? next.duration_minutes * 60 : null);
-                
-                const start = getSectionStartIndex(nextIndex);
-                if (start !== -1) setCurrent(start);
-              } else {
-                void submit(true);
-              }
-            }
-            return 0;
-          }
-          return ss - 1;
-        });
+        return remaining - 1;
+      };
+      if (sectionalTimingEnabled && sectionSecondsLeft !== null) {
+        setSectionSecondsLeft((remaining: number | null) => remaining === null ? null : tick(remaining));
+      } else {
+        setSecondsLeft(tick);
       }
     }, 1000);
 
@@ -313,6 +318,7 @@ useEffect(() => {
   }, [
     started,
     isPaused,
+    sectionalTimingEnabled,
     sectionSecondsLeft,
     currentSection,
     effectiveSections,
@@ -337,6 +343,54 @@ useEffect(() => {
   // active section and questions derived from computed memos
   const activeSection = effectiveSections[currentSection] ?? effectiveSections[0];
   const activeSectionQuestions = sectionQuestionMap[activeSection?.id ?? effectiveSections[0].id] ?? [];
+
+  const persistSession = useCallback(() => {
+    if (!started || !testId) return;
+    writeTestSession(testId, user?.id, {
+      answers,
+      markedForReview: Object.keys(marked).filter((id) => marked[id]),
+      visitedQuestions: Object.keys(visited).filter((id) => visited[id]),
+      currentQuestionIndex: current,
+      currentSectionIndex: currentSection,
+      remainingTimeSeconds: sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft,
+      completedSections: Object.keys(sectionSubmitted).filter((id) => sectionSubmitted[id]),
+      isPaused,
+    });
+  }, [answers, current, currentSection, isPaused, marked, sectionSecondsLeft, sectionSubmitted, sectionalTimingEnabled, secondsLeft, started, testId, user?.id, visited]);
+
+  useEffect(() => {
+    if (!test || !questions || hydratedSessionRef.current) return;
+    const session = readTestSession(testId, user?.id);
+    hydratedSessionRef.current = true;
+    if (!session) return;
+    setAnswers(session.answers);
+    setMarked(Object.fromEntries(session.markedForReview.map((id) => [id, true])));
+    setVisited(Object.fromEntries(session.visitedQuestions.map((id) => [id, true])));
+    setCurrentSection(Math.max(0, Math.min(session.currentSectionIndex, effectiveSections.length - 1)));
+    setCurrent(Math.max(0, Math.min(session.currentQuestionIndex, Math.max(orderedQuestions.length - 1, 0))));
+    setSectionSubmitted(Object.fromEntries(session.completedSections.map((id) => [id, true])));
+    if (sectionalTimingEnabled) setSectionSecondsLeft(session.remainingTimeSeconds);
+    else setSecondsLeft(session.remainingTimeSeconds);
+    setIsPaused(session.isPaused);
+    setStarted(true);
+    toast.info("Resumed from your previous session.");
+  }, [effectiveSections.length, orderedQuestions.length, questions, sectionalTimingEnabled, test, testId, user?.id]);
+
+  useEffect(() => {
+    if (!started) return;
+    persistSession();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        setIsPaused(true);
+        persistSession();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      persistSession();
+    };
+  }, [persistSession, started]);
 
   if (!test || !questions || questions.length === 0) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
@@ -409,10 +463,11 @@ useEffect(() => {
               onClick={() => {
                 setStudentName(name.trim());
                 setSecondsLeft(test.duration_minutes * 60);
-                const sectionalEnabled = !!(test as any)?.sectional_timing;
+                const sectionalEnabled = sectionalTimingEnabled;
                 if (sectionalEnabled) {
                   const first = sections[0];
-                  setSectionSecondsLeft(first?.duration_minutes ? first.duration_minutes * 60 : null);
+                  const firstDuration = Number(first?.duration_minutes ?? first?.duration ?? 0);
+                  setSectionSecondsLeft(firstDuration > 0 ? firstDuration * 60 : null);
                 } else {
                   setSectionSecondsLeft(null);
                 }
@@ -451,13 +506,40 @@ useEffect(() => {
   const q = currentQuestion;
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = orderedQuestions.length;
-  const warning = secondsLeft <= 120 && secondsLeft > 0; // below 2 minutes
-  const critical = secondsLeft <= 60 && secondsLeft > 0; // below 1 minute
+  const displayedSeconds = sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
+  const warning = displayedSeconds <= 120 && displayedSeconds > 0; // below 2 minutes
+  const critical = displayedSeconds <= 60 && displayedSeconds > 0; // below 1 minute
+  const activeSectionStart = getSectionStartIndex(currentSection);
+  const activeSectionEnd = activeSectionStart + activeSectionQuestions.length - 1;
+  const isLastQuestionOfSection = current === activeSectionEnd;
+  const isLastSection = currentSection === effectiveSections.length - 1;
+  const activeSectionAttemptedCount = activeSectionQuestions.filter((question) => answers[question.id] !== undefined).length;
+  const activeSectionMarkedCount = activeSectionQuestions.filter((question) => marked[question.id]).length;
+  const totalMarkedCount = orderedQuestions.filter((question) => marked[question.id]).length;
+  const totalAnsweredCount = orderedQuestions.filter((question) => answers[question.id] !== undefined).length;
+
+  const openFinalSummary = () => setFinalSummaryOpen(true);
+  const confirmSectionSubmit = () => {
+    setSectionSummaryOpen(false);
+    if (isLastSection) {
+      openFinalSummary();
+      return;
+    }
+    const nextSection = currentSection + 1;
+    setSectionSubmitted((submitted) => ({ ...submitted, [activeSection.id]: true }));
+    setCurrentSection(nextSection);
+    setCurrent(getSectionStartIndex(nextSection));
+    const next = effectiveSections[nextSection];
+    setSectionSecondsLeft(Number(next?.duration_minutes ?? next?.duration ?? 0) * 60 || null);
+  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
+          <Link to="/" aria-label="Rankdon home" className="mb-2 inline-flex transition-transform duration-200 hover:scale-105">
+            <img src="/logo.png" alt="Rankdon Logo" className="w-auto max-h-12 object-contain" />
+          </Link>
           <h1 className="font-display text-lg font-semibold md:text-xl">{test.title}</h1>
           <p className="text-xs text-muted-foreground">{answeredCount} of {totalQuestions} answered</p>
         </div>
@@ -495,7 +577,7 @@ useEffect(() => {
             aria-live="polite"
           >
             {critical ? <AlertTriangle className="size-4" /> : <Timer className="size-4" />}
-            {formatTime(secondsLeft)}
+            {formatTime(displayedSeconds)}
           </div>
         </div>
       </div>
@@ -514,14 +596,12 @@ useEffect(() => {
           const start = getSectionStartIndex(si);
           const count = (sectionQuestionMap[s.id] ?? []).length;
           const submitted = Boolean(sectionSubmitted[s.id]);
-          const disabled = Boolean((test as any)?.sectional_timing) && si !== currentSection && !submitted;
+          const disabled = sectionalTimingEnabled && si !== currentSection;
           return (
             <button
               key={s.id}
               onClick={() => {
-                // only allow switching when sectional timing is off or moving to current/next allowed
-                const sectionalEnabled = !!(test as any)?.sectional_timing;
-                if (sectionalEnabled && si !== currentSection) return;
+                if (sectionalTimingEnabled && si !== currentSection) return;
                 setCurrentSection(si);
                 const gs = getSectionStartIndex(si);
                 if (gs !== -1) setCurrent(gs);
@@ -574,38 +654,6 @@ useEffect(() => {
             })}
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={current === 0}
-                onClick={() => setCurrent((c) => c - 1)}
-              >
-                <ChevronLeft className="mr-1 size-4" /> Previous
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setAnswers((prev) => {
-                    const next = { ...prev };
-                    delete next[q.id];
-                    return next;
-                  })
-                }
-              >
-                Clear
-              </Button>
-            </div>
-            {current < totalQuestions - 1 ? (
-              <Button onClick={() => setCurrent((c) => c + 1)}>
-                Next <ChevronRight className="ml-1 size-4" />
-              </Button>
-            ) : (
-              <Button onClick={() => submit()} disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit test"}
-              </Button>
-            )}
-          </div>
         </section>
 
         <aside
@@ -658,9 +706,6 @@ useEffect(() => {
           </div>
 
           <div className="mt-4 space-y-2">
-            <Button className="w-full" variant="outline" onClick={() => submit()} disabled={submitting}>
-              Submit test
-            </Button>
             <div className="flex gap-2">
               <div className="flex items-center gap-2 text-xs">
                 <span className="inline-block h-3 w-3 rounded-sm bg-violet-600" /> Marked for review
@@ -673,124 +718,92 @@ useEffect(() => {
         </aside>
       </div>
 
-      {/* Bottom action bar */}
-      <div className="fixed left-0 right-0 bottom-4 z-50 mx-auto max-w-5xl px-4">
-        <div className="rounded-xl bg-background/80 backdrop-blur-md border border-border p-3 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  // Save & Next (within section when sectional timing enabled)
-                  const sectionalEnabled = !!(test as any)?.sectional_timing;
-                  const si = currentSection;
-                  const sec = sections?.[si];
-                  const start = getSectionStartIndex(si);
-                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
-                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
-                  if (current < (sectionalEnabled ? end : totalQuestions - 1)) setCurrent((c) => c + 1);
-                }}
-              >
-                Save &amp; Next
-              </Button>
-              <Button
-                onClick={() => {
-                  // Mark for review & Next (within section)
-                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
-                  const id = questionId ?? q?.id ?? null;
-                  if (!id) return;
-                  setMarked((m) => ({ ...m, [id]: true }));
-                  const sectionalEnabled = !!(test as any)?.sectional_timing;
-                  const si = currentSection;
-                  const sec = sections?.[si];
-                  const start = getSectionStartIndex(si);
-                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
-                  if (current < (sectionalEnabled ? end : totalQuestions - 1)) setCurrent((c) => c + 1);
-                }}
-                variant="outline"
-              >
-                Mark for Review &amp; Next
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  if (sectionSubmitted[activeSection?.id ?? ""]) return;
-                  setAnswers((prev) => {
-                    const next = { ...prev };
-                    const responseKey = questionId ?? q?.id ?? null;
-                    if (responseKey) delete next[responseKey];
-                    return next;
-                  });
-                }}
-              >
-                Clear Response
-              </Button>
-              {((test as any)?.sectional_timing) && (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                      if (sectionSubmitted[activeSection?.id ?? ""]) return;
-                    const si = currentSection;
-                      const sec = sections?.[si];
-                      if (!sec) return;
-                    setSectionSubmitted((m) => ({ ...m, [sec.id]: true }));
-                    const nextIndex = si + 1;
-                    if (nextIndex < sections.length) {
-                      setCurrentSection(nextIndex);
-                      const nextStart = getSectionStartIndex(nextIndex);
-                      if (nextStart !== -1) setCurrent(nextStart);
-                      const next = sections[nextIndex];
-                      setSectionSecondsLeft(next?.duration_minutes ? next.duration_minutes * 60 : null);
-                    } else {
-                      void submit(false);
-                    }
-                  }}
-                >
-Submit Section &amp; Next Section
-                </Button>
-              )}
+      {/* Unified action bar */}
+      <div className="fixed bottom-4 left-0 right-0 z-50 mx-auto max-w-5xl px-4">
+        <div className="rounded-xl border border-border bg-background/80 p-3 shadow-lg backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => setAnswers((prev) => {
+                const next = { ...prev };
+                if (questionId) delete next[questionId];
+                return next;
+              })}>Clear Response</Button>
+              <Button variant="outline" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
+                if (!questionId) return;
+                setMarked((previous) => ({ ...previous, [questionId]: !previous[questionId] }));
+              }}>{questionId && marked[questionId] ? "Unmark" : "Mark for Review"}</Button>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const sectionalEnabled = !!(test as any)?.sectional_timing;
-                  const si = currentSection;
-                  const start = getSectionStartIndex(si);
-                  if (sectionalEnabled) setCurrent((c) => Math.max(start, c - 1));
-                  else setCurrent((c) => Math.max(0, c - 1));
-                }}
-              >
-                <ChevronLeft className="mr-1 size-4" /> Prev
-              </Button>
-              <Button
-                onClick={() => {
-                  const sectionalEnabled = !!(test as any)?.sectional_timing;
-                  const si = currentSection;
-                  const sec = sections?.[si];
-                  const start = getSectionStartIndex(si);
-                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
-                  if (sectionalEnabled) {
-                    if (current < end) setCurrent((c) => c + 1);
-                  } else {
-                    if (current < totalQuestions - 1) setCurrent((c) => c + 1);
-                    else submit();
-                  }
-                }}
-              >
-                {(() => {
-                  const sectionalEnabled = !!(test as any)?.sectional_timing;
-                  const si = currentSection;
-                  const sec = sections?.[si];
-                  const start = getSectionStartIndex(si);
-                  const end = sec ? start + (sectionQuestionMap[sec.id]?.length ?? 1) - 1 : start;
-                  if (sectionalEnabled) return <span>Next <ChevronRight className="ml-1 size-4" /></span>;
-                  return current < totalQuestions - 1 ? <span>Next <ChevronRight className="ml-1 size-4" /></span> : <span>{submitting ? "Submitting…" : "Submit test"}</span>;
-                })()}
-              </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" disabled={current <= activeSectionStart || Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
+                if (current > activeSectionStart) setCurrent((value) => value - 1);
+                else if (!sectionalTimingEnabled && currentSection > 0) {
+                  const previousSection = currentSection - 1;
+                  const previousStart = getSectionStartIndex(previousSection);
+                  const previousCount = sectionQuestionMap[effectiveSections[previousSection].id]?.length ?? 0;
+                  setCurrentSection(previousSection);
+                  setCurrent(previousStart + Math.max(previousCount - 1, 0));
+                }
+              }}><ChevronLeft className="mr-1 size-4" /> Previous Question</Button>
+              {sectionalTimingEnabled && <Button variant="secondary" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => isLastSection ? openFinalSummary() : setSectionSummaryOpen(true)}>{isLastSection ? "Submit Test" : "Submit Section"}</Button>}
+              <Button disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
+                if (!isLastQuestionOfSection) {
+                  setCurrent((value) => value + 1);
+                } else if (sectionalTimingEnabled && !isLastSection) {
+                  setSectionAlertOpen(true);
+                } else if (!sectionalTimingEnabled && currentSection < effectiveSections.length - 1) {
+                  const nextSection = currentSection + 1;
+                  setCurrentSection(nextSection);
+                  setCurrent(getSectionStartIndex(nextSection));
+                } else {
+                  sectionalTimingEnabled ? (isLastSection ? openFinalSummary() : setSectionSummaryOpen(true)) : openFinalSummary();
+                }
+              }}>{sectionalTimingEnabled && isLastSection && isLastQuestionOfSection ? (submitting ? "Submitting..." : "Submit Test") : sectionalTimingEnabled && isLastQuestionOfSection ? "Next Question" : !sectionalTimingEnabled && current === totalQuestions - 1 ? "Submit Test" : "Save & Next"}<ChevronRight className="ml-1 size-4" /></Button>
             </div>
           </div>
         </div>
       </div>
+
+      {sectionAlertOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold">Section boundary</h2>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">You have reached the last question of this section. Please wait till the time allotted for this section is over or submit the section to move to next section</p>
+            <div className="mt-6 flex justify-end"><Button onClick={() => setSectionAlertOpen(false)}>Ok</Button></div>
+          </div>
+        </div>
+      )}
+
+      {sectionSummaryOpen && activeSection && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold">Summary of {activeSection.name}</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-muted-foreground">Section Time Left</p><p className="mt-1 font-mono font-semibold">{formatDuration(sectionSecondsLeft ?? 0)}</p></div>
+              <div><p className="text-muted-foreground">Attempted count</p><p className="mt-1 font-semibold">{activeSectionAttemptedCount}</p></div>
+              <div><p className="text-muted-foreground">Unattempted count</p><p className="mt-1 font-semibold">{Math.max(activeSectionQuestions.length - activeSectionAttemptedCount, 0)}</p></div>
+              <div><p className="text-muted-foreground">Marked for Review count</p><p className="mt-1 font-semibold">{activeSectionMarkedCount}</p></div>
+            </div>
+            <p className="mt-6 text-sm font-medium">Are you sure you want to submit this section?</p>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setSectionSummaryOpen(false)}>No</Button><Button onClick={confirmSectionSubmit}>Yes</Button></div>
+          </div>
+        </div>
+      )}
+
+      {finalSummaryOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold">Submit Test</h2>
+            <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+              <div><p className="text-muted-foreground">Total Answered</p><p className="mt-1 font-semibold">{totalAnsweredCount}</p></div>
+              <div><p className="text-muted-foreground">Total Unanswered</p><p className="mt-1 font-semibold">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p></div>
+              <div><p className="text-muted-foreground">Total Marked</p><p className="mt-1 font-semibold">{totalMarkedCount}</p></div>
+              <div><p className="text-muted-foreground">Time Left</p><p className="mt-1 font-mono font-semibold">{formatDuration(displayedSeconds)}</p></div>
+            </div>
+            <p className="mt-6 text-sm font-medium">Are you sure you want to submit the test?</p>
+            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setFinalSummaryOpen(false)}>Cancel</Button><Button onClick={() => { setFinalSummaryOpen(false); void submit(); }}>Yes, Submit Test</Button></div>
+          </div>
+        </div>
+      )}
 
       {/* Pause Overlay Modal */}
       {isPaused && (

@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      advertisements: {
+        Row: {
+          id: string
+          title: string
+          subtitle: string | null
+          badge_text: string
+          image_url: string
+          cta_text: string
+          cta_link: string
+          placement: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
+          is_external: boolean
+          is_active: boolean
+          gradient_theme: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
+          display_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          subtitle?: string | null
+          badge_text?: string
+          image_url?: string
+          cta_text?: string
+          cta_link?: string
+          placement?: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
+          is_external?: boolean
+          is_active?: boolean
+          gradient_theme?: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
+          display_order?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          subtitle?: string | null
+          badge_text?: string
+          image_url?: string
+          cta_text?: string
+          cta_link?: string
+          placement?: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
+          is_external?: boolean
+          is_active?: boolean
+          gradient_theme?: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
+          display_order?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       attempts: {
         Row: {
           accuracy: number
@@ -193,6 +241,12 @@ export type Database = {
         Row: { id: string; title: string; description: string; category: string; price: number | null; discount_price: number | null; is_combo: boolean; is_active: boolean; created_at: string }
         Insert: { id?: string; title: string; description?: string; category?: string; price?: number | null; discount_price?: number | null; is_combo?: boolean; is_active?: boolean; created_at?: string }
         Update: { id?: string; title?: string; description?: string; category?: string; price?: number | null; discount_price?: number | null; is_combo?: boolean; is_active?: boolean; created_at?: string }
+        Relationships: []
+      }
+      study_notes: {
+        Row: { id: string; title: string; description: string; category: string; file_url: string; is_free: boolean; created_at: string }
+        Insert: { id?: string; title: string; description?: string; category?: string; file_url: string; is_free?: boolean; created_at?: string }
+        Update: { id?: string; title?: string; description?: string; category?: string; file_url?: string; is_free?: boolean; created_at?: string }
         Relationships: []
       }
     }

@@ -18,13 +18,13 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/history")({
   head: () => ({
     meta: [
-      { title: "Attempted Tests — My Mock Test History | TestPrep" },
+      { title: "Attempted Tests — My Mock Test History | Rankdon" },
       {
         name: "description",
         content:
           "See every mock test you have attempted with date, score, accuracy and percentile, and open an in-depth question-wise analysis.",
       },
-      { property: "og:title", content: "Attempted Tests — TestPrep" },
+      { property: "og:title", content: "Attempted Tests — Rankdon" },
       {
         property: "og:description",
         content: "Your mock test history with score, accuracy, percentile and detailed analysis.",

@@ -38,6 +38,9 @@ export default function AuthModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={() => closeAuthModal()} />
       <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-6">
+        <div className="mb-5 flex justify-center">
+          <img src="/logo.png" alt="Rankdon Logo" className="h-16 w-auto object-contain" />
+        </div>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">{tab === 'signin' ? 'Sign In' : 'Sign Up'}</h3>
           <div className="flex gap-2">

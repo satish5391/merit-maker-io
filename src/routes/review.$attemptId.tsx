@@ -17,7 +17,7 @@ import MarkdownMath from "@/components/MarkdownMath";
 export const Route = createFileRoute("/review/$attemptId")({
   head: () => ({
     meta: [
-      { title: "Detailed Analysis — Question-wise Review | TestPrep" },
+      { title: "Detailed Analysis — Question-wise Review | Rankdon" },
       {
         name: "description",
         content:

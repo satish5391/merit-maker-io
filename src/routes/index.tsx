@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Clock, FileText, Plus, Repeat, Trophy, Users, Star, ShoppingBag, BookOpen, History } from "lucide-react";
+import { Clock, FileText, Repeat, Trophy, Users, Star, ShoppingBag, BookOpen, History, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
 import { getStudentName } from "@/lib/student";
@@ -9,17 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "../context/AuthContext";
+import { hasTestSession } from "@/lib/test-session";
+import { DEFAULT_ADVERTISEMENTS, HeroCarousel, InlinePromotion, PromoStrip, SidebarPromotions, type Advertisement } from "@/components/RankdonPromotions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "TestPrep — Free Online Mock Tests & Instant Scorecards" },
+      { title: "Rankdon — Free Online Mock Tests & Instant Scorecards" },
       {
         name: "description",
         content:
           "Attempt timed mock tests with negative marking and get an instant scorecard with score, accuracy, rank and percentile.",
       },
-      { property: "og:title", content: "TestPrep — Free Online Mock Tests" },
+      { property: "og:title", content: "Rankdon — Free Online Mock Tests" },
       {
         property: "og:description",
         content: "Timed mock tests with instant rank, percentile and performance comparison.",
@@ -69,7 +71,28 @@ function Home() {
     },
   });
 
-  const [activeView, setActiveView] = useState<"all" | "free" | "packages" | "enrolled">("all");
+  const { data: advertisements = [] } = useQuery({
+    queryKey: ["advertisements", "active"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase
+          .from("advertisements")
+          .select("*")
+          .eq("is_active", true)
+          .order("display_order", { ascending: true });
+        if (error) {
+          console.warn("Unable to load advertisements; using Rankdon defaults.", error);
+          return DEFAULT_ADVERTISEMENTS;
+        }
+        return (data ?? []) as Advertisement[];
+      } catch (error) {
+        console.warn("Advertisement request failed; using Rankdon defaults.", error);
+        return DEFAULT_ADVERTISEMENTS;
+      }
+    },
+  });
+
+  const [activeView, setActiveView] = useState<"home" | "all" | "free" | "packages" | "enrolled">("home");
 
   // Safe URL param updater using replaceState (no navigation)
   const updateUrlParam = (key: string, value: string) => {
@@ -84,10 +107,10 @@ function Home() {
     }
   };
 
-  const handleSetView = (v: "all" | "free" | "packages" | "enrolled") => {
+  const handleSetView = (v: "home" | "all" | "free" | "packages" | "enrolled") => {
     setActiveView((prev) => {
       if (prev === v) return prev;
-      updateUrlParam('tab', v === 'all' ? '' : v);
+      updateUrlParam('tab', v === 'home' || v === 'all' ? '' : v);
       return v;
     });
   };
@@ -117,10 +140,10 @@ function Home() {
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
-      const currentTab = (params.get('tab') as string) || 'all';
+      const currentTab = (params.get('tab') as string) || 'home';
       const currentCategory = (params.get('category') as string) || 'All';
       const currentQ = (params.get('q') as string) || '';
-      if (currentTab === 'free' || currentTab === 'packages' || currentTab === 'enrolled' || currentTab === 'all') {
+      if (currentTab === 'home' || currentTab === 'free' || currentTab === 'packages' || currentTab === 'enrolled' || currentTab === 'all') {
         setActiveView(currentTab as any);
       }
       setActiveCategory(currentCategory);
@@ -131,7 +154,7 @@ function Home() {
     const onPop = () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const t = params.get('tab') || 'all';
+        const t = params.get('tab') || 'home';
         const c = params.get('category') || 'All';
         const q = params.get('q') || '';
         setActiveView((prev) => (prev === t ? prev : (t as any)));
@@ -269,7 +292,7 @@ function Home() {
   };
 
   return (
-    <div>
+    <div className="bg-[#f8fafc]">
       {/* hero moved into right content to keep sidebar flush with left edge */}
 
       {/* Purchase modal (simple) */}
@@ -328,11 +351,25 @@ function Home() {
         </div>
       )}
 
+          {activeView === 'home' && <PromoStrip ads={advertisements} />}
           <main id="tests" className="flex h-[calc(100vh-64px)] overflow-hidden">
           {/* Left sidebar */}
           <aside className="w-56 md:w-60 flex-shrink-0 bg-[#161a1e] border-r border-[#262c35] p-3 flex flex-col justify-between h-full overflow-y-auto">
+            <div className="px-3 py-4 flex justify-center items-center border-b border-slate-800/60 mb-2">
+              <Link to="/" aria-label="Rankdon home" className="block w-full">
+                <img src="/logo.png" alt="Rankdon" className="w-full max-w-[190px] h-auto object-contain mx-auto rounded-xl block" />
+              </Link>
+            </div>
             <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3 pt-3 pb-1">TESTS</div>
             <nav className="mt-2 flex flex-col gap-1">
+              <button
+                onClick={() => handleSetView('home')}
+                className={activeView === 'home' ? 'bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3'}
+              >
+                <Sparkles className="size-4" />
+                <span>Home</span>
+              </button>
+
               <button
                 onClick={() => handleSetView('all')}
                 className={activeView === 'all' ? 'bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3' : 'text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3'}
@@ -372,29 +409,46 @@ function Home() {
                 <span>Attempted Tests</span>
               </Link>
 
-              <button className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3">
+              <Link to="/notes" className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3">
                 <BookOpen className="size-4" />
                 <span>Study Notes</span>
                 <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">NEW</span>
-              </button>
+              </Link>
             </nav>
           </aside>
 
           {/* Right content */}
           <div className="flex-1 h-full overflow-y-auto bg-[#f8fafc] p-6 md:p-8 min-w-0">
-            <section className="border-b border-border mb-6" style={{ background: 'var(--gradient-hero)' }}>
-              <div className="mx-auto max-w-5xl px-6 py-5 rounded-2xl mb-6 text-left">
-                <Badge className="mb-2 bg-white/15 text-primary-foreground hover:bg-white/20">Practice like the real exam</Badge>
-                <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-primary-foreground">Mock tests with real ranks, not just right answers</h1>
-                <p className="text-xs md:text-sm text-blue-100 mt-1.5 max-w-2xl leading-relaxed">Timed papers, negative marking, auto-submit and an instant scorecard with accuracy, rank, percentile and a comparison graph against every other student.</p>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button size="lg" variant="secondary" className="px-4 py-2 text-xs font-semibold rounded-lg shadow-sm">Browse tests</Button>
-                  <Button asChild size="lg" variant="outline" className="px-4 py-2 text-xs font-semibold rounded-lg shadow-sm border-white/40 bg-transparent text-primary-foreground hover:bg-white/10">
-                    <Link to="/admin"><Plus className="mr-1 size-4" /> Admin dashboard</Link>
-                  </Button>
+            {activeView === 'home' ? (
+              <section className="space-y-8">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_270px]">
+                  <HeroCarousel ads={advertisements} />
+                  <aside className="hidden xl:block xl:sticky xl:top-6 xl:self-start">
+                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500"><Sparkles className="size-4 text-cyan-600" /> Featured now</div>
+                    <SidebarPromotions ads={advertisements} />
+                  </aside>
                 </div>
-              </div>
-            </section>
+
+                <div>
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-700">Your next advantage</p><h1 className="mt-2 font-display text-2xl font-bold md:text-3xl">Practice with a plan</h1><p className="mt-1 text-sm text-muted-foreground">Jump into a focused category or unlock a complete series.</p></div>
+                    <Button variant="outline" onClick={() => handleSetView('all')}>Browse all tests</Button>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {categories.slice(0, 6).map((category) => <button key={category} type="button" onClick={() => { handleSetCategory(category); handleSetView('all'); }} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-cyan-400 hover:text-cyan-700">{category}</button>)}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-3"><h2 className="font-display text-xl font-semibold">Featured test series</h2><button type="button" onClick={() => handleSetView('packages')} className="text-sm font-semibold text-cyan-700 hover:text-cyan-900">View all series</button></div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    {packagesWithMeta.slice(0, 3).map((pkg: any, index: number) => <article key={pkg?.id ?? `featured-${index}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"><Badge variant="secondary">{pkg?.category ?? 'Rankdon series'}</Badge><h3 className="mt-3 font-display text-lg font-semibold">{pkg?.title ?? 'Rankdon Mock Series'}</h3><p className="mt-2 text-sm text-muted-foreground">{pkg?.description ?? 'A focused bundle for consistent practice and better ranks.'}</p><Button size="sm" className="mt-5" onClick={() => handleSetView('packages')}>Explore series</Button></article>)}
+                    {packagesWithMeta.length === 0 && <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-muted-foreground md:col-span-3">Rankdon Mock Series bundles will appear here as soon as they are published.</article>}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <>
 
             <h2 className="font-display text-xl font-semibold md:text-2xl">Available mock tests</h2>
             <p className="mt-1 text-sm text-muted-foreground">Pick a paper and start whenever you're ready. The timer starts on the first question.</p>
@@ -435,6 +489,8 @@ function Home() {
                 </button>
               ))}
             </div>
+
+            <InlinePromotion ads={advertisements} />
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               {isLoading && [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
@@ -494,6 +550,7 @@ function Home() {
                     const isPaid = !((t as any).is_free === true || Number((t as any).price ?? 0) === 0);
                     const bought = unlockedIds.has(t.id);
                     const userAttemptCount = (myAttempts ?? []).filter((a: any) => a.test_id === t.id).length;
+                    const hasSavedSession = hasTestSession(t.id, resolvedUserId);
                     const attemptLimit = t.max_attempts || 1;
                     const limitReached = userAttemptCount >= attemptLimit;
                     const canAccessPaidTest = bought && !limitReached;
@@ -525,7 +582,7 @@ function Home() {
                         <div className="mt-4 flex items-end justify-end">
                           {bought ? (
                             canAccessPaidTest ? (
-                              <Button asChild size="sm"><Link to="/test/$testId" params={{ testId: t.id }}>{userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
+                              <Button asChild size="sm" className={hasSavedSession ? 'bg-cyan-600 hover:bg-cyan-700' : ''}><Link to="/test/$testId" params={{ testId: t.id }}>{hasSavedSession ? 'Resume Test' : userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
                             ) : (
                               <Button size="sm" disabled>Attempt Limit Reached</Button>
                             )
@@ -615,6 +672,7 @@ function Home() {
                     const isPackageOnly = accessType === "package_only";
                     const isPaid = accessType === "paid";
                     const purchased = unlockedIds.has(t.id);
+                    const hasSavedSession = hasTestSession(t.id, resolvedUserId);
                     return (
                       <article key={t.id} className="p-5 rounded-2xl border border-slate-200/80 bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
                         <div className="flex flex-wrap gap-2">
@@ -640,7 +698,7 @@ function Home() {
                             userAttemptCount >= attemptLimit ? (
                               <Button className="mt-5 w-full" disabled>Attempt Limit Reached</Button>
                             ) : (
-                              <Button asChild className="mt-5 w-full"><Link to="/test/$testId" params={{ testId: t.id }}>{userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
+                              <Button asChild className={`mt-5 w-full ${hasSavedSession ? 'bg-cyan-600 hover:bg-cyan-700' : ''}`}><Link to="/test/$testId" params={{ testId: t.id }}>{hasSavedSession ? 'Resume Test' : userAttemptCount === 0 ? 'Start Test' : `Retake Test (${userAttemptCount}/${attemptLimit})`}</Link></Button>
                             )
                           ) : (
                             <Button className="mt-5 w-full" onClick={() => openPurchaseModal(t, 'test')}>Unlock Test</Button>
@@ -659,6 +717,8 @@ function Home() {
                 <p className="text-sm text-muted-foreground">No items to show for this view.</p>
               )}
             </div>
+              </>
+            )}
           </div>
       </main>
     </div>

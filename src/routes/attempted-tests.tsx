@@ -12,13 +12,13 @@ export const Route = createFileRoute("/attempted-tests")({
   component: AttemptedTestsPage,
   head: () => ({
     meta: [
-      { title: "Attempted Tests — My Mock Test History | TestPrep" },
+      { title: "Attempted Tests — My Mock Test History | Rankdon" },
       {
         name: "description",
         content:
           "See every mock test you have attempted with date, score and accuracy, and open a detailed analysis.",
       },
-      { property: "og:title", content: "Attempted Tests — TestPrep" },
+      { property: "og:title", content: "Attempted Tests — Rankdon" },
       {
         property: "og:description",
         content: "Your mock test history with score, accuracy and detailed analysis.",
@@ -121,7 +121,7 @@ function AttemptedTestsPage() {
             <span>Attempted Tests</span>
           </a>
 
-          <a className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a href="/notes" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
             <BookOpen className="size-4" />
             <span>Study Notes</span>
             <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">NEW</span>

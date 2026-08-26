@@ -23,13 +23,13 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 export const Route = createFileRoute("/result/$attemptId")({
   head: () => ({
     meta: [
-      { title: "Your Scorecard — Rank, Percentile & Analysis | TestPrep" },
+      { title: "Your Scorecard — Rank, Percentile & Analysis | Rankdon" },
       {
         name: "description",
         content:
           "See your mock test scorecard: score, accuracy, rank, percentile and a comparison graph against other students.",
       },
-      { property: "og:title", content: "Your Mock Test Scorecard — TestPrep" },
+      { property: "og:title", content: "Your Mock Test Scorecard — Rankdon" },
       {
         property: "og:description",
         content: "Score, accuracy, rank, percentile and a comparison graph against other students.",

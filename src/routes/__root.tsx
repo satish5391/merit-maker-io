@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { ADMIN_EMAILS } from "../lib/admin-access";
 
 
 function NotFoundComponent() {
@@ -81,8 +82,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "TestPrep — Online Mock Tests" },
-      { name: "description", content: "Timed online mock tests with instant scorecards." },
+      { title: "Rankdon — Practice • Analyze • Rank" },
+      { name: "description", content: "Practice full-length mock tests, track percentiles, and access subject-wise study notes on Rankdon." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -97,7 +98,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter+Tight:wght@400;500;600&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/logo.png", type: "image/png" },
     ],
   }),
 
@@ -124,9 +125,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link to="/" className="font-display text-lg font-bold tracking-tight">
-          Test<span className="text-primary">Prep</span>
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2 sm:py-3">
+        <Link className="flex items-center gap-2.5 hover:opacity-90 transition-opacity" to="/">
+          <img src="/logo.png" alt="Rankdon Emblem" className="h-8 w-8 object-contain rounded-lg flex-shrink-0" />
+          <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            Rank<span className="text-cyan-500">don</span>
+          </span>
         </Link>
         <nav className="flex items-center gap-1 text-sm">
           <Link
@@ -143,13 +147,6 @@ function SiteHeader() {
             activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
           >
             Attempted Tests
-          </Link>
-          <Link
-            to="/admin"
-            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
-          >
-            Admin
           </Link>
         </nav>
       </div>
@@ -169,7 +166,7 @@ function RootComponent() {
           <main className="flex-1">
             <Outlet />
           </main>
-          <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">TestPrep — practice mock tests with instant analysis.</footer>
+          <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">© 2026 Rankdon — Practice mock tests with instant analysis.</footer>
           <AuthModal />
         </div>
       </AuthProvider>
@@ -180,14 +177,16 @@ function RootComponent() {
 
 function SiteHeaderWithAuth() {
   const auth = useAuth();
+  const isAdmin = Boolean(auth.user?.email && ADMIN_EMAILS.includes(auth.user.email.trim().toLowerCase()));
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link to="/" className="font-display text-lg font-bold tracking-tight">Test<span className="text-primary">Prep</span></Link>
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2 sm:py-3">
+        <Link className="flex items-center gap-2.5 hover:opacity-90 transition-opacity" to="/"><img src="/logo.png" alt="Rankdon Emblem" className="h-8 w-8 object-contain rounded-lg flex-shrink-0" /><span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Rank<span className="text-cyan-500">don</span></span></Link>
         <nav className="flex items-center gap-1 text-sm">
           <Link to="/" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }} activeOptions={{ exact: true }}>Tests</Link>
           <Link to="/attempted-tests" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Attempted Tests</Link>
-          <Link to="/admin" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Admin</Link>
+          <Link to="/notes" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Study Notes</Link>
+          {isAdmin && <Link to="/admin" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Admin</Link>}
         </nav>
         <div>
           {auth.user ? (
