@@ -10,11 +10,11 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
-import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { AuthProvider } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
+import Header from '@/components/Header';
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { ADMIN_EMAILS } from "../lib/admin-access";
 
 
 function NotFoundComponent() {
@@ -122,38 +122,6 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2 sm:py-3">
-        <Link className="flex items-center gap-2.5 hover:opacity-90 transition-opacity" to="/">
-          <img src="/logo.png" alt="Rankdon Emblem" className="h-8 w-8 object-contain rounded-lg flex-shrink-0" />
-          <span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            Rank<span className="text-cyan-500">don</span>
-          </span>
-        </Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link
-            to="/"
-            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
-            activeOptions={{ exact: true }}
-          >
-            Tests
-          </Link>
-          <Link
-            to="/attempted-tests"
-            className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}
-          >
-            Attempted Tests
-          </Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -176,30 +144,5 @@ function RootComponent() {
 }
 
 function SiteHeaderWithAuth() {
-  const auth = useAuth();
-  const isAdmin = Boolean(auth.user?.email && ADMIN_EMAILS.includes(auth.user.email.trim().toLowerCase()));
-  return (
-    <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-2 sm:py-3">
-        <Link className="flex items-center gap-2.5 hover:opacity-90 transition-opacity" to="/"><img src="/logo.png" alt="Rankdon Emblem" className="h-8 w-8 object-contain rounded-lg flex-shrink-0" /><span className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Rank<span className="text-cyan-500">don</span></span></Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Link to="/" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }} activeOptions={{ exact: true }}>Tests</Link>
-          <Link to="/attempted-tests" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Attempted Tests</Link>
-          <Link to="/notes" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Study Notes</Link>
-          {isAdmin && <Link to="/admin" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" activeProps={{ className: "rounded-md px-3 py-1.5 font-medium text-foreground" }}>Admin</Link>}
-        </nav>
-        <div>
-          {auth.user ? (
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-semibold">{(auth.user.email ?? '').charAt(0).toUpperCase()}</div>
-              <div className="text-sm text-muted-foreground">{auth.user.email}</div>
-              <button className="ml-3 rounded-md px-3 py-1.5 text-sm" onClick={() => void auth.signOut()}>Sign Out</button>
-            </div>
-          ) : (
-            <button className="rounded-md px-3 py-1.5 text-sm font-semibold" onClick={() => auth.openAuthModal()}>Login / Sign Up</button>
-          )}
-        </div>
-      </div>
-    </header>
-  );
+  return <Header />;
 }
