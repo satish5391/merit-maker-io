@@ -11,7 +11,12 @@ export type Test = {
   max_attempts: number | null;
   cutoff?: number | null;
   created_at: string;
+  status?: "in_progress" | "completed";
   access_type?: "free" | "paid" | "package_only" | null;
+  is_live?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  result_declaration_time?: string | null;
 };
 
 export type Question = {
@@ -40,13 +45,11 @@ export type Attempt = {
 };
 
 function normalizeAttempt(row: Record<string, unknown>): Attempt {
-  const raw = row['answers'];
+  const raw = row["answers"];
   return {
     ...(row as unknown as Attempt),
     answers:
-      raw && typeof raw === "object" && !Array.isArray(raw)
-        ? (raw as Record<string, number>)
-        : {},
+      raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, number>) : {},
   };
 }
 
@@ -90,14 +93,16 @@ export async function fetchAttempts(testId: string): Promise<Attempt[]> {
 }
 
 /** Fetch only lightweight attempt score rows for a test (id and score, student_name optional) */
-export async function fetchAttemptScores(testId: string): Promise<Pick<Attempt, 'id' | 'score' | 'student_name'>[]> {
+export async function fetchAttemptScores(
+  testId: string,
+): Promise<Pick<Attempt, "id" | "score" | "student_name">[]> {
   const { data, error } = await supabase
     .from("attempts")
     .select("id, score, student_name")
     .eq("test_id", testId)
     .order("score", { ascending: false });
   if (error) throw error;
-  return (data ?? []) as Pick<Attempt, 'id' | 'score' | 'student_name'>[];
+  return (data ?? []) as Pick<Attempt, "id" | "score" | "student_name">[];
 }
 
 export async function fetchAttempt(id: string): Promise<Attempt> {

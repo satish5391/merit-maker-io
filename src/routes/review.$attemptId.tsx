@@ -187,6 +187,17 @@ function ReviewPage() {
       </div>
     );
 
+  if (test.is_live && test.result_declaration_time && new Date(test.result_declaration_time).getTime() > Date.now())
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-950">
+          <h1 className="font-display text-xl font-semibold">Detailed solutions are not available yet</h1>
+          <p className="mt-3 text-sm">Detailed solutions, rank, and percentile analysis will be declared on: {new Date(test.result_declaration_time).toLocaleString()}.</p>
+          <Button asChild variant="outline" className="mt-5"><Link to="/result/$attemptId" params={{ attemptId }}>View submission summary</Link></Button>
+        </div>
+      </div>
+    );
+
   
 
   return (

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AttemptedTestsRouteImport } from './routes/attempted-tests'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as LiveTestsRouteImport } from './routes/live-tests'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ResultAttemptIdRouteImport } from './routes/result.$attemptId'
@@ -37,6 +38,11 @@ const AttemptedTestsRoute = AttemptedTestsRouteImport.update({
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveTestsRoute = LiveTestsRouteImport.update({
+  id: '/live-tests',
+  path: '/live-tests',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotesRoute = NotesRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
+  '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/profile': typeof ProfileRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
+  '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/profile': typeof ProfileRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/history': typeof HistoryRoute
+  '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/profile': typeof ProfileRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/history'
+    | '/live-tests'
     | '/notes'
     | '/profile'
     | '/result/$attemptId'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/history'
+    | '/live-tests'
     | '/notes'
     | '/profile'
     | '/result/$attemptId'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/history'
+    | '/live-tests'
     | '/notes'
     | '/profile'
     | '/result/$attemptId'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AttemptedTestsRoute: typeof AttemptedTestsRoute
   HistoryRoute: typeof HistoryRoute
+  LiveTestsRoute: typeof LiveTestsRoute
   NotesRoute: typeof NotesRoute
   ProfileRoute: typeof ProfileRoute
   ResultAttemptIdRoute: typeof ResultAttemptIdRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live-tests': {
+      id: '/live-tests'
+      path: '/live-tests'
+      fullPath: '/live-tests'
+      preLoaderRoute: typeof LiveTestsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notes': {
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AttemptedTestsRoute: AttemptedTestsRoute,
   HistoryRoute: HistoryRoute,
+  LiveTestsRoute: LiveTestsRoute,
   NotesRoute: NotesRoute,
   ProfileRoute: ProfileRoute,
   ResultAttemptIdRoute: ResultAttemptIdRoute,

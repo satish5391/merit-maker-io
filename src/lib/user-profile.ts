@@ -14,6 +14,10 @@ export type UserProfile = {
   grantedTestIds: string[];
   state: string;
   city: string;
+  full_name?: string;
+  has_free_pass?: boolean;
+  is_banned?: boolean;
+  free_pass_expires_at?: string | null;
 };
 
 export const USER_PROFILE_STORAGE_KEY = "rankdon.user-profile";
@@ -23,7 +27,12 @@ export function getDefaultProfile(email = ""): UserProfile {
 
   return {
     id: `RD-${year}-001`,
-    name: email ? email.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (match) => match.toUpperCase()) : "Rankdon Student",
+    name: email
+      ? email
+          .split("@")[0]
+          .replace(/[._-]/g, " ")
+          .replace(/\b\w/g, (match) => match.toUpperCase())
+      : "Rankdon Student",
     email,
     phone: "+91 ",
     targetExam: DEFAULT_TARGET_EXAM,
@@ -33,6 +42,9 @@ export function getDefaultProfile(email = ""): UserProfile {
     grantedTestIds: [],
     state: "",
     city: "",
+    full_name: "",
+    has_free_pass: false,
+    free_pass_expires_at: null,
   };
 }
 
@@ -59,7 +71,9 @@ export function getUserProfile(email = ""): UserProfile {
       ...parsed,
       email: parsed.email || email || base.email,
       grantedTestIds: Array.isArray(parsed.grantedTestIds) ? parsed.grantedTestIds : [],
-      subscriptionTier: isValidTier(parsed.subscriptionTier) ? parsed.subscriptionTier : base.subscriptionTier,
+      subscriptionTier: isValidTier(parsed.subscriptionTier)
+        ? parsed.subscriptionTier
+        : base.subscriptionTier,
       name: parsed.name || base.name,
       phone: parsed.phone || base.phone,
       targetExam: parsed.targetExam || base.targetExam,
@@ -81,8 +95,12 @@ export function setUserProfile(profile: Partial<UserProfile>, emailOverride = ""
     ...base,
     ...profile,
     email: profile.email || emailOverride || base.email,
-    grantedTestIds: Array.isArray(profile.grantedTestIds) ? profile.grantedTestIds : base.grantedTestIds,
-    subscriptionTier: isValidTier(profile.subscriptionTier) ? profile.subscriptionTier : base.subscriptionTier,
+    grantedTestIds: Array.isArray(profile.grantedTestIds)
+      ? profile.grantedTestIds
+      : base.grantedTestIds,
+    subscriptionTier: isValidTier(profile.subscriptionTier)
+      ? profile.subscriptionTier
+      : base.subscriptionTier,
   };
 
   window.localStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(next));

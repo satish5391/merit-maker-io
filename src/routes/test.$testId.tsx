@@ -1,13 +1,19 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { TriangleAlert as AlertTriangle, ChevronLeft, ChevronRight, Timer, Flag } from "lucide-react";
+import {
+  TriangleAlert as AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Timer,
+  Flag,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from "@/context/AuthContext";
 import { fetchQuestions, fetchTest, fetchStudentAttempts } from "@/lib/mock-test";
-import { getStudentName, setStudentName } from "@/lib/student";
-import { saveAttemptToHistory } from "@/lib/attempt-history";
+import { setStudentName } from "@/lib/student";
+import { getCompletedTests, markTestCompleted, saveAttemptToHistory } from "@/lib/attempt-history";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,9 +57,32 @@ function formatDuration(total: number) {
 function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile: userProfile } = useAuth();
+  const { data: databaseProfile } = useQuery({
+    queryKey: ["profile-access", user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("has_free_pass, free_pass_expires_at")
+        .eq("id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const hasFreePass = Boolean(
+    (databaseProfile?.has_free_pass ?? userProfile?.has_free_pass) &&
+    (!(databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at) ||
+      new Date(
+        databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at!,
+      ).getTime() > Date.now()),
+  );
 
-  const { data: test, isLoading: isLoadingTest } = useQuery({ queryKey: ["test", testId], queryFn: () => fetchTest(testId) });
+  const { data: test, isLoading: isLoadingTest } = useQuery({
+    queryKey: ["test", testId],
+    queryFn: () => fetchTest(testId),
+  });
   const { data: questions, isLoading: isLoadingQuestions } = useQuery({
     queryKey: ["questions", testId],
     queryFn: () => fetchQuestions(testId),
@@ -79,13 +108,16 @@ function TestPage() {
   const submittedRef = useRef(false);
 
   useEffect(() => {
-    if (user?.email) {
-      setName(user.email);
-      return;
-    }
-    const stored = getStudentName();
-    if (stored) setName(stored);
-  }, [user?.email]);
+    if (name.trim()) return;
+    const defaultName =
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      (userProfile as any)?.full_name ||
+      userProfile?.name ||
+      (user?.email ? user.email.split("@")[0] : "") ||
+      "";
+    if (defaultName) setName(defaultName);
+  }, [name, user?.email, user?.user_metadata, userProfile]);
 
   const { data: myAttempts } = useQuery({
     queryKey: ["my-attempts", name.trim()],
@@ -93,7 +125,7 @@ function TestPage() {
     enabled: name.trim().length > 0 && !user?.id,
   });
 
-  const { data: userAttempts = [] } = useQuery({
+  const { data: userAttempts = [], isLoading: isLoadingUserAttempts } = useQuery({
     queryKey: ["test-user-attempts", user?.id, testId],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -111,9 +143,18 @@ function TestPage() {
   const { data: packageAccess, isLoading: isLoadingPackageAccess } = useQuery({
     queryKey: ["package-access", user?.id, testId],
     queryFn: async () => {
+      if (hasFreePass) return true;
       if (!user?.id || !testId) return false;
-      const [{ data: purchases, error: purchasesError }, { data: packageLinks, error: linksError }] = await Promise.all([
-        supabase.from("user_purchases").select("item_id").eq("user_id", user.id).eq("item_type", "package").eq("payment_status", "completed"),
+      const [
+        { data: purchases, error: purchasesError },
+        { data: packageLinks, error: linksError },
+      ] = await Promise.all([
+        supabase
+          .from("user_purchases")
+          .select("item_id")
+          .eq("user_id", user.id)
+          .eq("item_type", "package")
+          .eq("payment_status", "completed"),
         supabase.from("package_tests").select("package_id").eq("test_id", testId),
       ]);
       if (purchasesError) throw purchasesError;
@@ -127,8 +168,25 @@ function TestPage() {
   const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;
   const effectiveAttemptCount = user?.id ? userAttempts.length : usedAttempts;
   const maxAllowedAttempts = test?.max_attempts || 1;
-  const activeAttempt = user?.id ? userAttempts?.[0] ?? null : myAttempts?.[0] ?? null;
+  const activeAttempt = user?.id ? (userAttempts?.[0] ?? null) : (myAttempts?.[0] ?? null);
   const activeAttemptId = activeAttempt?.id ?? null;
+  const localCompletedAttemptId = getCompletedTests()[testId];
+  const completedDatabaseAttempt = (user?.id ? userAttempts : (myAttempts ?? [])).find(
+    (attempt) => (attempt as any).status !== "in_progress",
+  );
+  const completedAttemptId = localCompletedAttemptId ?? completedDatabaseAttempt?.id;
+  const isCheckingCompletedAttempt = user?.id
+    ? isLoadingUserAttempts
+    : Boolean(name.trim()) && myAttempts === undefined;
+  const isLive = Boolean((test as any)?.is_live);
+
+  useEffect(() => {
+    if (isLive && !isCheckingCompletedAttempt && completedAttemptId) {
+      clearTestSession(testId, user?.id);
+      clearTestSession(testId, null);
+      void navigate({ to: "/live-tests", replace: true });
+    }
+  }, [completedAttemptId, isCheckingCompletedAttempt, isLive, navigate, testId, user?.id]);
 
   // Defensive parse sections
   const rawSections = (test as any)?.sections;
@@ -212,23 +270,25 @@ function TestPage() {
         const resolvedUserId = session?.user?.id ?? (user ? user.id : null);
 
         // if the test requires login, stop and prompt auth instead of saving anonymously
-        const loginRequired = Boolean((test as any)?.require_login || (test as any)?.login_required);
+        const loginRequired = Boolean(
+          (test as any)?.require_login || (test as any)?.login_required,
+        );
         if (loginRequired && !resolvedUserId) {
           try {
-            const auth = require('@/context/AuthContext');
+            const auth = require("@/context/AuthContext");
             const ctx = auth.useAuth ? auth.useAuth() : null;
             ctx?.openAuthModal?.();
           } catch (e) {
             // ignore
           }
-          toast.error('Please sign in to submit this test');
+          toast.error("Please sign in to submit this test");
           submittedRef.current = false;
           setSubmitting(false);
           return;
         }
 
-       // 1. Defensively resolve current user session
-        const studentIdentifier = user?.email || name.trim() || 'Student';
+        // 1. Defensively resolve current user session
+        const studentIdentifier = user?.email || name.trim() || "Student";
 
         const insertPayload = {
           test_id: test.id,
@@ -242,6 +302,7 @@ function TestPage() {
           accuracy,
           time_taken_seconds: Math.max(0, timeTaken),
           answers,
+          status: "completed" as const,
         };
 
         const { data, error } = await supabase
@@ -256,6 +317,7 @@ function TestPage() {
         }
 
         if (data) {
+          if (test.is_live) markTestCompleted(test.id, data.id);
           saveAttemptToHistory({
             id: data.id,
             test_id: data.test_id,
@@ -268,7 +330,12 @@ function TestPage() {
           });
         }
         if (auto) toast.info("Time's up — your test was submitted automatically.");
+        setStarted(false);
+        setIsPaused(false);
         clearTestSession(testId, resolvedUserId);
+        clearTestSession(testId, user?.id);
+        clearTestSession(testId, null);
+        clearTestSession(testId, undefined);
         navigate({ to: "/result/$attemptId", params: { attemptId: data.id } });
       } catch (e) {
         submittedRef.current = false;
@@ -279,10 +346,11 @@ function TestPage() {
     [answers, name, navigate, orderedQuestions, secondsLeft, test],
   );
 
-  const sectionalTimingEnabled = Boolean((test as any)?.sectional_timing || (test as any)?.has_sectional_timing);
+  const sectionalTimingEnabled =
+    !isLive && Boolean((test as any)?.sectional_timing || (test as any)?.has_sectional_timing);
 
   useEffect(() => {
-    if (!started || isPaused) return;
+    if (!started || (!isLive && isPaused)) return;
 
     const id = setInterval(() => {
       const tick = (remaining: number) => {
@@ -291,12 +359,15 @@ function TestPage() {
           if (sectionalTimingEnabled && sectionSecondsLeft !== null) {
             const nextSection = currentSection + 1;
             const expiredSection = effectiveSections[currentSection];
-            if (expiredSection) setSectionSubmitted((submitted) => ({ ...submitted, [expiredSection.id]: true }));
+            if (expiredSection)
+              setSectionSubmitted((submitted) => ({ ...submitted, [expiredSection.id]: true }));
             if (nextSection < effectiveSections.length) {
               setCurrentSection(nextSection);
               setCurrent(getSectionStartIndex(nextSection));
               const next = effectiveSections[nextSection];
-              setSectionSecondsLeft(Number(next?.duration_minutes ?? next?.duration ?? 0) * 60 || null);
+              setSectionSecondsLeft(
+                Number(next?.duration_minutes ?? next?.duration ?? 0) * 60 || null,
+              );
             } else {
               void submit(true);
             }
@@ -308,7 +379,9 @@ function TestPage() {
         return remaining - 1;
       };
       if (sectionalTimingEnabled && sectionSecondsLeft !== null) {
-        setSectionSecondsLeft((remaining: number | null) => remaining === null ? null : tick(remaining));
+        setSectionSecondsLeft((remaining: number | null) =>
+          remaining === null ? null : tick(remaining),
+        );
       } else {
         setSecondsLeft(tick);
       }
@@ -318,6 +391,7 @@ function TestPage() {
   }, [
     started,
     isPaused,
+    isLive,
     sectionalTimingEnabled,
     sectionSecondsLeft,
     currentSection,
@@ -342,7 +416,8 @@ function TestPage() {
 
   // active section and questions derived from computed memos
   const activeSection = effectiveSections[currentSection] ?? effectiveSections[0];
-  const activeSectionQuestions = sectionQuestionMap[activeSection?.id ?? effectiveSections[0].id] ?? [];
+  const activeSectionQuestions =
+    sectionQuestionMap[activeSection?.id ?? effectiveSections[0].id] ?? [];
 
   const persistSession = useCallback(() => {
     if (!started || !testId) return;
@@ -352,11 +427,26 @@ function TestPage() {
       visitedQuestions: Object.keys(visited).filter((id) => visited[id]),
       currentQuestionIndex: current,
       currentSectionIndex: currentSection,
-      remainingTimeSeconds: sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft,
+      remainingTimeSeconds:
+        sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft,
       completedSections: Object.keys(sectionSubmitted).filter((id) => sectionSubmitted[id]),
       isPaused,
     });
-  }, [answers, current, currentSection, isPaused, marked, sectionSecondsLeft, sectionSubmitted, sectionalTimingEnabled, secondsLeft, started, testId, user?.id, visited]);
+  }, [
+    answers,
+    current,
+    currentSection,
+    isPaused,
+    marked,
+    sectionSecondsLeft,
+    sectionSubmitted,
+    sectionalTimingEnabled,
+    secondsLeft,
+    started,
+    testId,
+    user?.id,
+    visited,
+  ]);
 
   useEffect(() => {
     if (!test || !questions || hydratedSessionRef.current) return;
@@ -366,22 +456,35 @@ function TestPage() {
     setAnswers(session.answers);
     setMarked(Object.fromEntries(session.markedForReview.map((id) => [id, true])));
     setVisited(Object.fromEntries(session.visitedQuestions.map((id) => [id, true])));
-    setCurrentSection(Math.max(0, Math.min(session.currentSectionIndex, effectiveSections.length - 1)));
-    setCurrent(Math.max(0, Math.min(session.currentQuestionIndex, Math.max(orderedQuestions.length - 1, 0))));
+    setCurrentSection(
+      Math.max(0, Math.min(session.currentSectionIndex, effectiveSections.length - 1)),
+    );
+    setCurrent(
+      Math.max(0, Math.min(session.currentQuestionIndex, Math.max(orderedQuestions.length - 1, 0))),
+    );
     setSectionSubmitted(Object.fromEntries(session.completedSections.map((id) => [id, true])));
     if (sectionalTimingEnabled) setSectionSecondsLeft(session.remainingTimeSeconds);
     else setSecondsLeft(session.remainingTimeSeconds);
-    setIsPaused(session.isPaused);
+    setIsPaused(isLive ? false : session.isPaused);
     setStarted(true);
     toast.info("Resumed from your previous session.");
-  }, [effectiveSections.length, orderedQuestions.length, questions, sectionalTimingEnabled, test, testId, user?.id]);
+  }, [
+    effectiveSections.length,
+    isLive,
+    orderedQuestions.length,
+    questions,
+    sectionalTimingEnabled,
+    test,
+    testId,
+    user?.id,
+  ]);
 
   useEffect(() => {
     if (!started) return;
     persistSession();
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        setIsPaused(true);
+        if (!isLive) setIsPaused(true);
         persistSession();
       }
     };
@@ -390,23 +493,58 @@ function TestPage() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       persistSession();
     };
-  }, [persistSession, started]);
+  }, [isLive, persistSession, started]);
 
   if (!test || !questions || questions.length === 0) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
   }
 
-  if (test.access_type === "package_only" && (isLoadingPackageAccess || !packageAccess)) {
+  if (isLive && (isCheckingCompletedAttempt || completedAttemptId)) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center text-sm text-muted-foreground">
+        Checking live-test eligibility...
+      </div>
+    );
+  }
+
+  if (
+    test.access_type === "package_only" &&
+    !hasFreePass &&
+    (isLoadingPackageAccess || !packageAccess)
+  ) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
         <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
           <Badge variant="secondary">PACKAGE ONLY</Badge>
           <h1 className="mt-3 font-display text-2xl font-bold">Package access required</h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            This test is exclusive to a package bundle. Please purchase the series to access this test.
+            This test is exclusive to a package bundle. Please purchase the series to access this
+            test.
           </p>
           <Button asChild className="mt-6">
             <Link to="/">View Test Series &amp; Combos</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const liveStart = test.start_time ? new Date(test.start_time).getTime() : null;
+  const liveEnd = test.end_time ? new Date(test.end_time).getTime() : null;
+  if (
+    isLive &&
+    ((liveStart !== null && Date.now() < liveStart) || (liveEnd !== null && Date.now() >= liveEnd))
+  ) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16">
+        <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
+          <Badge variant="secondary">LIVE TEST</Badge>
+          <h1 className="mt-3 font-display text-2xl font-bold">This live window is not open</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Return to Live Tests to see the schedule and availability.
+          </p>
+          <Button asChild className="mt-6">
+            <Link to="/live-tests">View Live Tests</Link>
           </Button>
         </div>
       </div>
@@ -428,7 +566,9 @@ function TestPage() {
           <Badge variant="secondary">{test.subject}</Badge>
           <h1 className="mt-3 font-display text-2xl font-bold">{test.title}</h1>
           <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-              <li>{orderedQuestions.length} questions · {test.duration_minutes} minutes</li>
+            <li>
+              {orderedQuestions.length} questions · {test.duration_minutes} minutes
+            </li>
             <li>+{test.positive_marks} for each correct answer</li>
             <li>−{test.negative_marks} for each wrong answer</li>
             <li>The test auto-submits when the timer hits zero.</li>
@@ -452,7 +592,8 @@ function TestPage() {
 
           {limitReached && (
             <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              You have exhausted all allowed attempts ({test.max_attempts ?? 1}/{test.max_attempts ?? 1}) for this test.
+              You have exhausted all allowed attempts ({test.max_attempts ?? 1}/
+              {test.max_attempts ?? 1}) for this test.
             </div>
           )}
 
@@ -506,17 +647,24 @@ function TestPage() {
   const q = currentQuestion;
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = orderedQuestions.length;
-  const displayedSeconds = sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
+  const displayedSeconds =
+    sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
   const warning = displayedSeconds <= 120 && displayedSeconds > 0; // below 2 minutes
   const critical = displayedSeconds <= 60 && displayedSeconds > 0; // below 1 minute
   const activeSectionStart = getSectionStartIndex(currentSection);
   const activeSectionEnd = activeSectionStart + activeSectionQuestions.length - 1;
   const isLastQuestionOfSection = current === activeSectionEnd;
   const isLastSection = currentSection === effectiveSections.length - 1;
-  const activeSectionAttemptedCount = activeSectionQuestions.filter((question) => answers[question.id] !== undefined).length;
-  const activeSectionMarkedCount = activeSectionQuestions.filter((question) => marked[question.id]).length;
+  const activeSectionAttemptedCount = activeSectionQuestions.filter(
+    (question) => answers[question.id] !== undefined,
+  ).length;
+  const activeSectionMarkedCount = activeSectionQuestions.filter(
+    (question) => marked[question.id],
+  ).length;
   const totalMarkedCount = orderedQuestions.filter((question) => marked[question.id]).length;
-  const totalAnsweredCount = orderedQuestions.filter((question) => answers[question.id] !== undefined).length;
+  const totalAnsweredCount = orderedQuestions.filter(
+    (question) => answers[question.id] !== undefined,
+  ).length;
 
   const openFinalSummary = () => setFinalSummaryOpen(true);
   const confirmSectionSubmit = () => {
@@ -537,14 +685,20 @@ function TestPage() {
     <div className="mx-auto max-w-5xl px-4 py-6">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
-          <Link to="/" aria-label="Rankdon home" className="mb-2 inline-flex transition-transform duration-200 hover:scale-105">
+          <Link
+            to="/"
+            aria-label="Rankdon home"
+            className="mb-2 inline-flex transition-transform duration-200 hover:scale-105"
+          >
             <img src="/logo.png" alt="Rankdon Logo" className="w-auto max-h-12 object-contain" />
           </Link>
           <h1 className="font-display text-lg font-semibold md:text-xl">{test.title}</h1>
-          <p className="text-xs text-muted-foreground">{answeredCount} of {totalQuestions} answered</p>
+          <p className="text-xs text-muted-foreground">
+            {answeredCount} of {totalQuestions} answered
+          </p>
         </div>
 
-<div className="flex items-center gap-3">
+        <div className="flex items-center gap-3">
           {/* palette toggle for small screens */}
           <button
             className="inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm hover:bg-muted"
@@ -557,15 +711,17 @@ function TestPage() {
           </button>
 
           {/* Pause Test Button */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPaused(true)}
-            className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-300 text-xs font-semibold h-10 px-3"
-          >
-            Pause Test
-          </Button>
+          {!isLive && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPaused(true)}
+              className="bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-300 text-xs font-semibold h-10 px-3"
+            >
+              Pause Test
+            </Button>
+          )}
 
           <div
             className={cn(
@@ -584,7 +740,8 @@ function TestPage() {
 
       {warning && (
         <div className="mt-3 rounded-md border border-destructive bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertTriangle className="inline-block mr-2 align-middle" /> Less than 2 minutes remaining — finish soon. The test will auto-submit when time runs out.
+          <AlertTriangle className="inline-block mr-2 align-middle" /> Less than 2 minutes remaining
+          — finish soon. The test will auto-submit when time runs out.
         </div>
       )}
 
@@ -606,7 +763,10 @@ function TestPage() {
                 const gs = getSectionStartIndex(si);
                 if (gs !== -1) setCurrent(gs);
               }}
-              className={cn("px-3 py-1 rounded-md text-sm font-medium", si === currentSection ? "bg-muted" : "bg-background")}
+              className={cn(
+                "px-3 py-1 rounded-md text-sm font-medium",
+                si === currentSection ? "bg-muted" : "bg-background",
+              )}
               disabled={disabled}
             >
               {s.name} · {count}
@@ -619,7 +779,8 @@ function TestPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_240px]">
         <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Question {current - getSectionStartIndex(currentSection) + 1} of {activeSectionQuestions.length}
+            Question {current - getSectionStartIndex(currentSection) + 1} of{" "}
+            {activeSectionQuestions.length}
           </p>
           <h2 className="mt-2 text-base font-medium md:text-lg">{q.body}</h2>
 
@@ -653,7 +814,6 @@ function TestPage() {
               );
             })}
           </div>
-
         </section>
 
         <aside
@@ -666,7 +826,9 @@ function TestPage() {
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Question palette</h3>
-            <div className="text-xs text-muted-foreground">{answeredCount}/{totalQuestions}</div>
+            <div className="text-xs text-muted-foreground">
+              {answeredCount}/{totalQuestions}
+            </div>
           </div>
 
           <div className="mt-3 grid grid-cols-6 gap-2 lg:grid-cols-5">
@@ -678,11 +840,14 @@ function TestPage() {
               const globalIndex = getSectionStartIndex(currentSection) + i;
 
               // priority: marked+answered -> marked-with-dot, marked -> purple, answered -> green, visited-not-answered -> red, not visited -> gray
-              let classes = "aspect-square rounded-md border text-xs font-semibold transition-colors relative";
+              let classes =
+                "aspect-square rounded-md border text-xs font-semibold transition-colors relative";
               if (isMarked && isAnswered) classes += " bg-violet-600 text-white";
               else if (isMarked) classes += " bg-violet-600 text-white";
-              else if (isAnswered) classes += " border-transparent bg-success text-success-foreground";
-              else if (isVisited) classes += " border-transparent bg-destructive text-destructive-foreground";
+              else if (isAnswered)
+                classes += " border-transparent bg-success text-success-foreground";
+              else if (isVisited)
+                classes += " border-transparent bg-destructive text-destructive-foreground";
               else classes += " border-border bg-background text-muted-foreground";
 
               return (
@@ -690,7 +855,10 @@ function TestPage() {
                   key={itemId ?? `question-${i}`}
                   type="button"
                   onClick={() => setCurrent(globalIndex)}
-                  className={cn(classes, globalIndex === current && "ring-2 ring-ring ring-offset-1")}
+                  className={cn(
+                    classes,
+                    globalIndex === current && "ring-2 ring-ring ring-offset-1",
+                  )}
                   title={`Question ${i + 1}`}
                 >
                   {i + 1}
@@ -723,41 +891,94 @@ function TestPage() {
         <div className="rounded-xl border border-border bg-background/80 p-3 shadow-lg backdrop-blur-md">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-2">
-              <Button variant="ghost" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => setAnswers((prev) => {
-                const next = { ...prev };
-                if (questionId) delete next[questionId];
-                return next;
-              })}>Clear Response</Button>
-              <Button variant="outline" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
-                if (!questionId) return;
-                setMarked((previous) => ({ ...previous, [questionId]: !previous[questionId] }));
-              }}>{questionId && marked[questionId] ? "Unmark" : "Mark for Review"}</Button>
+              <Button
+                variant="ghost"
+                disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])}
+                onClick={() =>
+                  setAnswers((prev) => {
+                    const next = { ...prev };
+                    if (questionId) delete next[questionId];
+                    return next;
+                  })
+                }
+              >
+                Clear Response
+              </Button>
+              <Button
+                variant="outline"
+                disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])}
+                onClick={() => {
+                  if (!questionId) return;
+                  setMarked((previous) => ({ ...previous, [questionId]: !previous[questionId] }));
+                }}
+              >
+                {questionId && marked[questionId] ? "Unmark" : "Mark for Review"}
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" disabled={current <= activeSectionStart || Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
-                if (current > activeSectionStart) setCurrent((value) => value - 1);
-                else if (!sectionalTimingEnabled && currentSection > 0) {
-                  const previousSection = currentSection - 1;
-                  const previousStart = getSectionStartIndex(previousSection);
-                  const previousCount = sectionQuestionMap[effectiveSections[previousSection].id]?.length ?? 0;
-                  setCurrentSection(previousSection);
-                  setCurrent(previousStart + Math.max(previousCount - 1, 0));
+              <Button
+                variant="outline"
+                disabled={
+                  current <= activeSectionStart ||
+                  Boolean(sectionSubmitted[activeSection?.id ?? ""])
                 }
-              }}><ChevronLeft className="mr-1 size-4" /> Previous Question</Button>
-              {sectionalTimingEnabled && <Button variant="secondary" disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => isLastSection ? openFinalSummary() : setSectionSummaryOpen(true)}>{isLastSection ? "Submit Test" : "Submit Section"}</Button>}
-              <Button disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])} onClick={() => {
-                if (!isLastQuestionOfSection) {
-                  setCurrent((value) => value + 1);
-                } else if (sectionalTimingEnabled && !isLastSection) {
-                  setSectionAlertOpen(true);
-                } else if (!sectionalTimingEnabled && currentSection < effectiveSections.length - 1) {
-                  const nextSection = currentSection + 1;
-                  setCurrentSection(nextSection);
-                  setCurrent(getSectionStartIndex(nextSection));
-                } else {
-                  sectionalTimingEnabled ? (isLastSection ? openFinalSummary() : setSectionSummaryOpen(true)) : openFinalSummary();
-                }
-              }}>{sectionalTimingEnabled && isLastSection && isLastQuestionOfSection ? (submitting ? "Submitting..." : "Submit Test") : sectionalTimingEnabled && isLastQuestionOfSection ? "Next Question" : !sectionalTimingEnabled && current === totalQuestions - 1 ? "Submit Test" : "Save & Next"}<ChevronRight className="ml-1 size-4" /></Button>
+                onClick={() => {
+                  if (current > activeSectionStart) setCurrent((value) => value - 1);
+                  else if (!sectionalTimingEnabled && currentSection > 0) {
+                    const previousSection = currentSection - 1;
+                    const previousStart = getSectionStartIndex(previousSection);
+                    const previousCount =
+                      sectionQuestionMap[effectiveSections[previousSection].id]?.length ?? 0;
+                    setCurrentSection(previousSection);
+                    setCurrent(previousStart + Math.max(previousCount - 1, 0));
+                  }
+                }}
+              >
+                <ChevronLeft className="mr-1 size-4" /> Previous Question
+              </Button>
+              {sectionalTimingEnabled && (
+                <Button
+                  variant="secondary"
+                  disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])}
+                  onClick={() => (isLastSection ? openFinalSummary() : setSectionSummaryOpen(true))}
+                >
+                  {isLastSection ? "Submit Test" : "Submit Section"}
+                </Button>
+              )}
+              <Button
+                disabled={Boolean(sectionSubmitted[activeSection?.id ?? ""])}
+                onClick={() => {
+                  if (!isLastQuestionOfSection) {
+                    setCurrent((value) => value + 1);
+                  } else if (sectionalTimingEnabled && !isLastSection) {
+                    setSectionAlertOpen(true);
+                  } else if (
+                    !sectionalTimingEnabled &&
+                    currentSection < effectiveSections.length - 1
+                  ) {
+                    const nextSection = currentSection + 1;
+                    setCurrentSection(nextSection);
+                    setCurrent(getSectionStartIndex(nextSection));
+                  } else {
+                    sectionalTimingEnabled
+                      ? isLastSection
+                        ? openFinalSummary()
+                        : setSectionSummaryOpen(true)
+                      : openFinalSummary();
+                  }
+                }}
+              >
+                {sectionalTimingEnabled && isLastSection && isLastQuestionOfSection
+                  ? submitting
+                    ? "Submitting..."
+                    : "Submit Test"
+                  : sectionalTimingEnabled && isLastQuestionOfSection
+                    ? "Next Question"
+                    : !sectionalTimingEnabled && current === totalQuestions - 1
+                      ? "Submit Test"
+                      : "Save & Next"}
+                <ChevronRight className="ml-1 size-4" />
+              </Button>
             </div>
           </div>
         </div>
@@ -765,48 +986,114 @@ function TestPage() {
 
       {sectionAlertOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl"
+          >
             <h2 className="text-lg font-semibold">Section boundary</h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">You have reached the last question of this section. Please wait till the time allotted for this section is over or submit the section to move to next section</p>
-            <div className="mt-6 flex justify-end"><Button onClick={() => setSectionAlertOpen(false)}>Ok</Button></div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              You have reached the last question of this section. Please wait till the time allotted
+              for this section is over or submit the section to move to next section
+            </p>
+            <div className="mt-6 flex justify-end">
+              <Button onClick={() => setSectionAlertOpen(false)}>Ok</Button>
+            </div>
           </div>
         </div>
       )}
 
       {sectionSummaryOpen && activeSection && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl"
+          >
             <h2 className="text-lg font-semibold">Summary of {activeSection.name}</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-muted-foreground">Section Time Left</p><p className="mt-1 font-mono font-semibold">{formatDuration(sectionSecondsLeft ?? 0)}</p></div>
-              <div><p className="text-muted-foreground">Attempted count</p><p className="mt-1 font-semibold">{activeSectionAttemptedCount}</p></div>
-              <div><p className="text-muted-foreground">Unattempted count</p><p className="mt-1 font-semibold">{Math.max(activeSectionQuestions.length - activeSectionAttemptedCount, 0)}</p></div>
-              <div><p className="text-muted-foreground">Marked for Review count</p><p className="mt-1 font-semibold">{activeSectionMarkedCount}</p></div>
+              <div>
+                <p className="text-muted-foreground">Section Time Left</p>
+                <p className="mt-1 font-mono font-semibold">
+                  {formatDuration(sectionSecondsLeft ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Attempted count</p>
+                <p className="mt-1 font-semibold">{activeSectionAttemptedCount}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Unattempted count</p>
+                <p className="mt-1 font-semibold">
+                  {Math.max(activeSectionQuestions.length - activeSectionAttemptedCount, 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Marked for Review count</p>
+                <p className="mt-1 font-semibold">{activeSectionMarkedCount}</p>
+              </div>
             </div>
-            <p className="mt-6 text-sm font-medium">Are you sure you want to submit this section?</p>
-            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setSectionSummaryOpen(false)}>No</Button><Button onClick={confirmSectionSubmit}>Yes</Button></div>
+            <p className="mt-6 text-sm font-medium">
+              Are you sure you want to submit this section?
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSectionSummaryOpen(false)}>
+                No
+              </Button>
+              <Button onClick={confirmSectionSubmit}>Yes</Button>
+            </div>
           </div>
         </div>
       )}
 
       {finalSummaryOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl"
+          >
             <h2 className="text-lg font-semibold">Submit Test</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
-              <div><p className="text-muted-foreground">Total Answered</p><p className="mt-1 font-semibold">{totalAnsweredCount}</p></div>
-              <div><p className="text-muted-foreground">Total Unanswered</p><p className="mt-1 font-semibold">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p></div>
-              <div><p className="text-muted-foreground">Total Marked</p><p className="mt-1 font-semibold">{totalMarkedCount}</p></div>
-              <div><p className="text-muted-foreground">Time Left</p><p className="mt-1 font-mono font-semibold">{formatDuration(displayedSeconds)}</p></div>
+              <div>
+                <p className="text-muted-foreground">Total Answered</p>
+                <p className="mt-1 font-semibold">{totalAnsweredCount}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Unanswered</p>
+                <p className="mt-1 font-semibold">
+                  {Math.max(totalQuestions - totalAnsweredCount, 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Marked</p>
+                <p className="mt-1 font-semibold">{totalMarkedCount}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Time Left</p>
+                <p className="mt-1 font-mono font-semibold">{formatDuration(displayedSeconds)}</p>
+              </div>
             </div>
             <p className="mt-6 text-sm font-medium">Are you sure you want to submit the test?</p>
-            <div className="mt-6 flex justify-end gap-2"><Button variant="outline" onClick={() => setFinalSummaryOpen(false)}>Cancel</Button><Button onClick={() => { setFinalSummaryOpen(false); void submit(); }}>Yes, Submit Test</Button></div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setFinalSummaryOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setFinalSummaryOpen(false);
+                  void submit();
+                }}
+              >
+                Yes, Submit Test
+              </Button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Pause Overlay Modal */}
-      {isPaused && (
+      {!isLive && isPaused && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">
             <h3 className="text-lg font-bold text-slate-800">Test Paused</h3>

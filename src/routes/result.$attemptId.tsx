@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { Bar } from "react-chartjs-2";
@@ -70,6 +70,12 @@ function ResultPage() {
   });
 
   const { user } = useAuth();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!test?.is_live || !test.result_declaration_time) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [test?.is_live, test?.result_declaration_time]);
   const allowedAttempts = test?.max_attempts ?? 1;
   const { data: userAttemptCount = 0 } = useQuery({
     queryKey: ["user-test-attempt-count", user?.id, attempt?.test_id],
@@ -142,6 +148,36 @@ function ResultPage() {
             <div className="h-24 rounded bg-muted" />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  const resultsPending = Boolean(test?.is_live && test.result_declaration_time && new Date(test.result_declaration_time).getTime() > now);
+  if (resultsPending && test) {
+    const correct = Number(attempt.correct_count ?? 0);
+    const incorrect = Number(attempt.wrong_count ?? 0);
+    const unattempted = Number(attempt.skipped_count ?? 0);
+    const total = Math.max(1, correct + incorrect + unattempted);
+    const correctRatio = (correct / total) * 100;
+    const incorrectRatio = (incorrect / total) * 100;
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <Badge variant="secondary">Live test submitted</Badge>
+        <h1 className="mt-3 font-display text-2xl font-bold md:text-3xl">Submission received</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{test.title} · {attempt.student_name}</p>
+        <div className="mt-8 grid gap-6 md:grid-cols-[220px_1fr] md:items-center">
+          <div className="mx-auto flex size-52 items-center justify-center rounded-full" style={{ background: `conic-gradient(#16a34a 0 ${correctRatio}%, #dc2626 ${correctRatio}% ${correctRatio + incorrectRatio}%, #cbd5e1 ${correctRatio + incorrectRatio}% 100%)` }}>
+            <div className="flex size-36 flex-col items-center justify-center rounded-full bg-card text-center"><span className="font-display text-3xl font-bold">{correct}</span><span className="text-xs text-muted-foreground">correct</span></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs uppercase text-muted-foreground">Total Attempted Questions</p><p className="mt-1 font-display text-2xl font-bold">{correct + incorrect}</p></div>
+            <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs uppercase text-muted-foreground">Total Correct Questions</p><p className="mt-1 font-display text-2xl font-bold text-emerald-700">{correct}</p></div>
+            <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs uppercase text-muted-foreground">Total Incorrect Questions</p><p className="mt-1 font-display text-2xl font-bold text-rose-700">{incorrect}</p></div>
+            <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs uppercase text-muted-foreground">Unattempted Questions</p><p className="mt-1 font-display text-2xl font-bold text-slate-600">{unattempted}</p></div>
+          </div>
+        </div>
+        <div className="mt-8 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><p className="font-semibold">Detailed solutions, rank, and percentile analysis will be declared on: {new Date(test.result_declaration_time).toLocaleString()}.</p><p className="mt-2 text-amber-900/80">Your submission has been recorded. Please return after the declaration time to view the complete analysis.</p></div>
+        <Button asChild variant="outline" className="mt-6"><Link to="/live-tests">Back to Live Tests</Link></Button>
       </div>
     );
   }

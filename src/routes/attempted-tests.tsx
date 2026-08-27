@@ -2,7 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTests } from "@/lib/mock-test";
-import { FileText, Star, Trophy, ShoppingBag, BookOpen, History as HistoryIcon } from "lucide-react";
+import {
+  FileText,
+  Star,
+  Trophy,
+  ShoppingBag,
+  BookOpen,
+  History as HistoryIcon,
+  Radio,
+} from "lucide-react";
 import { getAttemptHistory, type AttemptSummary } from "@/lib/attempt-history";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +50,10 @@ function AttemptedTestsPage() {
   }, []);
 
   const categories = useMemo(
-    () => ["All Categories", ...Array.from(new Set(history.map((item) => item.category).filter(Boolean))).sort()],
+    () => [
+      "All Categories",
+      ...Array.from(new Set(history.map((item) => item.category).filter(Boolean))).sort(),
+    ],
     [history],
   );
 
@@ -53,9 +64,16 @@ function AttemptedTestsPage() {
 
   const metrics = useMemo(() => {
     const total = history.length;
-    const accuracy = total ? history.reduce((sum, item) => sum + Number(item.accuracy || 0), 0) / total : 0;
+    const accuracy = total
+      ? history.reduce((sum, item) => sum + Number(item.accuracy || 0), 0) / total
+      : 0;
     const averageScore = total
-      ? history.reduce((sum, item) => sum + (Number(item.maxScore) > 0 ? (Number(item.score) / Number(item.maxScore)) * 100 : 0), 0) / total
+      ? history.reduce(
+          (sum, item) =>
+            sum +
+            (Number(item.maxScore) > 0 ? (Number(item.score) / Number(item.maxScore)) * 100 : 0),
+          0,
+        ) / total
       : 0;
     const cleared = attemptsWithTests.filter(({ item, test }) => {
       const cutoff = Number((test as any)?.cutoff_score ?? (test as any)?.cutoff ?? 0);
@@ -70,20 +88,30 @@ function AttemptedTestsPage() {
       .filter(({ item }) => categoryFilter === "All Categories" || item.category === categoryFilter)
       .filter(({ item }) => !query || item.testTitle.toLowerCase().includes(query))
       .sort((a, b) => {
-        if (sortOrder === "oldest") return new Date(a.item.submittedAt).getTime() - new Date(b.item.submittedAt).getTime();
-        if (sortOrder === "highest") return Number(b.item.score) / Math.max(1, Number(b.item.maxScore)) - Number(a.item.score) / Math.max(1, Number(a.item.maxScore));
-        if (sortOrder === "lowest") return Number(a.item.score) / Math.max(1, Number(a.item.maxScore)) - Number(b.item.score) / Math.max(1, Number(b.item.maxScore));
+        if (sortOrder === "oldest")
+          return new Date(a.item.submittedAt).getTime() - new Date(b.item.submittedAt).getTime();
+        if (sortOrder === "highest")
+          return (
+            Number(b.item.score) / Math.max(1, Number(b.item.maxScore)) -
+            Number(a.item.score) / Math.max(1, Number(a.item.maxScore))
+          );
+        if (sortOrder === "lowest")
+          return (
+            Number(a.item.score) / Math.max(1, Number(a.item.maxScore)) -
+            Number(b.item.score) / Math.max(1, Number(b.item.maxScore))
+          );
         return new Date(b.item.submittedAt).getTime() - new Date(a.item.submittedAt).getTime();
       });
   }, [attemptsWithTests, categoryFilter, search, sortOrder]);
 
   const trendData = useMemo(
-    () => [...history]
-      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
-      .map((item, index) => ({
-        name: `${index + 1}`,
-        score: Math.round((Number(item.score) / Math.max(1, Number(item.maxScore))) * 1000) / 10,
-      })),
+    () =>
+      [...history]
+        .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+        .map((item, index) => ({
+          name: `${index + 1}`,
+          score: Math.round((Number(item.score) / Math.max(1, Number(item.maxScore))) * 1000) / 10,
+        })),
     [history],
   );
 
@@ -91,40 +119,75 @@ function AttemptedTestsPage() {
     <main className="flex h-[calc(100vh-64px)] overflow-hidden">
       {/* Left Sidebar */}
       <aside className="w-60 md:w-64 flex-shrink-0 bg-[#1e232a] text-slate-300 p-4 border-r border-slate-800 h-full overflow-y-auto flex flex-col gap-1">
-        <div className="text-[11px] font-bold text-slate-400 px-3 pt-3 pb-1 tracking-wider">TESTS</div>
+        <div className="text-[11px] font-bold text-slate-400 px-3 pt-3 pb-1 tracking-wider">
+          TESTS
+        </div>
         <nav className="mt-2 flex flex-col gap-1">
-          <a href="/" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a
+            href="/"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
             <FileText className="size-4" />
             <span>All Tests</span>
           </a>
 
-          <a href="/?tab=free" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a
+            href="/?tab=free"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
             <Star className="size-4" />
             <span>Free Mock Tests</span>
           </a>
 
-          <a href="/?tab=packages" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a
+            href="/live-tests"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
+            <span className="relative">
+              <Radio className="size-4 text-rose-400" />
+              <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-emerald-400 ring-2 ring-[#1e232a]" />
+            </span>
+            <span>Live Tests</span>
+          </a>
+
+          <a
+            href="/?tab=packages"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
             <Trophy className="size-4" />
             <span>Test Series &amp; Combos</span>
           </a>
 
-          <a href="/?tab=enrolled" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a
+            href="/?tab=enrolled"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
             <ShoppingBag className="size-4" />
             <span>My Enrolled / Purchased</span>
           </a>
         </nav>
 
-        <div className="text-[11px] font-bold text-slate-400 px-3 pt-3 pb-1 tracking-wider mt-4">STUDY MATERIAL</div>
+        <div className="text-[11px] font-bold text-slate-400 px-3 pt-3 pb-1 tracking-wider mt-4">
+          STUDY MATERIAL
+        </div>
         <nav className="mt-2 flex flex-col gap-1">
-          <a href="/attempted-tests" className="bg-[#2b323c] text-cyan-400 font-semibold border-l-2 border-cyan-400 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm">
+          <a
+            href="/attempted-tests"
+            className="bg-[#2b323c] text-cyan-400 font-semibold border-l-2 border-cyan-400 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm"
+          >
             <HistoryIcon className="size-4" />
             <span>Attempted Tests</span>
           </a>
 
-          <a href="/notes" className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium">
+          <a
+            href="/notes"
+            className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
+          >
             <BookOpen className="size-4" />
             <span>Study Notes</span>
-            <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">NEW</span>
+            <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+              NEW
+            </span>
           </a>
         </nav>
       </aside>
@@ -134,7 +197,8 @@ function AttemptedTestsPage() {
         <div className="mx-auto max-w-4xl">
           <h1 className="font-display text-2xl font-bold md:text-3xl">Attempted tests</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every test you have submitted on this device, with score, accuracy and a detailed analysis.
+            Every test you have submitted on this device, with score, accuracy and a detailed
+            analysis.
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -144,7 +208,10 @@ function AttemptedTestsPage() {
               ["Avg Score %", `${metrics.averageScore.toFixed(1)}%`],
               ["Cutoff Cleared Rate", `${metrics.cutoffRate.toFixed(1)}%`],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+              <div
+                key={label}
+                className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]"
+              >
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
                 <p className="mt-1 font-display text-2xl font-bold">{value}</p>
               </div>
@@ -160,10 +227,30 @@ function AttemptedTestsPage() {
               <div className="mt-4 h-52 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trendData} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
-                    <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                    <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Score"]} labelFormatter={(label) => `Attempt ${label}`} />
-                    <Line type="monotone" dataKey="score" stroke="#0891b2" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11 }}
+                    />
+                    <Tooltip
+                      formatter={(value) => [`${Number(value).toFixed(1)}%`, "Score"]}
+                      labelFormatter={(label) => `Attempt ${label}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#0891b2"
+                      strokeWidth={3}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -178,10 +265,20 @@ function AttemptedTestsPage() {
               placeholder="Search by test title"
               className="h-10 flex-1 rounded-md border border-input bg-background px-3 text-sm"
             />
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-              {categories.map((category) => <option key={category}>{category}</option>)}
+            <select
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              {categories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
             </select>
-            <select value={sortOrder} onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as typeof sortOrder)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="highest">Highest Score</option>
@@ -192,7 +289,7 @@ function AttemptedTestsPage() {
           {history.length === 0 && (
             <div className="mt-6 rounded-xl border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                You haven't attempted any tests yet. {" "}
+                You haven't attempted any tests yet.{" "}
                 <Link to="/" className="text-primary underline">
                   Browse available tests
                 </Link>{" "}
@@ -204,7 +301,10 @@ function AttemptedTestsPage() {
           <div className="mt-6 space-y-4">
             {filteredAttempts.map(({ item, test }) => {
               const score = Math.max(0, Number(item.score ?? 0));
-              const maxScore = Math.max(1, Number(item.maxScore ?? (test as any)?.max_score ?? 100));
+              const maxScore = Math.max(
+                1,
+                Number(item.maxScore ?? (test as any)?.max_score ?? 100),
+              );
               const lowerCutoff = Number((test as any)?.cutoff ?? Math.round(maxScore * 0.4));
               const upperCutoff = (test as any)?.cutoff_max
                 ? Number((test as any).cutoff_max)
@@ -222,22 +322,36 @@ function AttemptedTestsPage() {
                   {/* proportional background fill */}
                   <div
                     aria-hidden
-                    className={"absolute inset-y-0 left-0 z-0 " + (isCleared ? "bg-emerald-50" : "bg-rose-50")}
+                    className={
+                      "absolute inset-y-0 left-0 z-0 " +
+                      (isCleared ? "bg-emerald-50" : "bg-rose-50")
+                    }
                     style={{ width: `${fillRatio}%` }}
                   />
 
                   <div className="flex items-stretch relative z-10">
                     <div className="p-5 flex flex-col items-center justify-center min-w-[160px] bg-transparent">
                       <div className="text-xs text-muted-foreground">Score</div>
-                      <div className={"mt-1 font-display text-2xl font-bold " + (isCleared ? "text-emerald-700" : "text-rose-600")}>{score}</div>
+                      <div
+                        className={
+                          "mt-1 font-display text-2xl font-bold " +
+                          (isCleared ? "text-emerald-700" : "text-rose-600")
+                        }
+                      >
+                        {score}
+                      </div>
                       <div className="text-xs text-muted-foreground">/ {maxScore}</div>
                     </div>
                     <div className="flex-1 p-5">
                       <div className="flex flex-wrap gap-2">
                         <Badge>{item.category}</Badge>
                       </div>
-                      <h2 className="mt-2 font-display text-lg font-semibold leading-snug">{item.testTitle}</h2>
-                      <p className="text-xs text-muted-foreground">{new Date(item.submittedAt).toLocaleString()}</p>
+                      <h2 className="mt-2 font-display text-lg font-semibold leading-snug">
+                        {item.testTitle}
+                      </h2>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(item.submittedAt).toLocaleString()}
+                      </p>
 
                       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
                         <div>
@@ -246,10 +360,14 @@ function AttemptedTestsPage() {
                         </div>
                         <div className="sm:col-span-2 text-right flex items-center justify-end gap-2">
                           <Button asChild size="sm" variant="outline">
-                            <Link to="/review/$attemptId" params={{ attemptId: item.attemptId }}>Solution</Link>
+                            <Link to="/review/$attemptId" params={{ attemptId: item.attemptId }}>
+                              Solution
+                            </Link>
                           </Button>
                           <Button asChild size="sm">
-                            <Link to="/result/$attemptId" params={{ attemptId: item.attemptId }}>Analysis</Link>
+                            <Link to="/result/$attemptId" params={{ attemptId: item.attemptId }}>
+                              Analysis
+                            </Link>
                           </Button>
                         </div>
                       </dl>
@@ -257,7 +375,13 @@ function AttemptedTestsPage() {
                       <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
                         <div>Attempted on {new Date(item.submittedAt).toLocaleString()}</div>
                         <div>
-                          <Link to="/test/$testId" params={{ testId: item.testId }} className="text-primary underline">Reattempt →</Link>
+                          <Link
+                            to="/test/$testId"
+                            params={{ testId: item.testId }}
+                            className="text-primary underline"
+                          >
+                            Reattempt →
+                          </Link>
                         </div>
                       </div>
                     </div>
