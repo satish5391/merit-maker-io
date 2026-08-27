@@ -14,6 +14,7 @@ export type Advertisement = {
   placement: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar";
   is_external: boolean;
   is_active: boolean;
+  banner_type: "standard" | "direct_image";
   gradient_theme: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro";
   display_order: number;
   created_at: string;
@@ -31,6 +32,7 @@ export const DEFAULT_ADVERTISEMENTS: Advertisement[] = [
     placement: "hero_carousel",
     is_external: false,
     is_active: true,
+    banner_type: "standard",
     gradient_theme: "blue_glow",
     display_order: 0,
     created_at: "",
@@ -46,6 +48,7 @@ export const DEFAULT_ADVERTISEMENTS: Advertisement[] = [
     placement: "sidebar_banner",
     is_external: false,
     is_active: true,
+    banner_type: "standard",
     gradient_theme: "emerald_pro",
     display_order: 1,
     created_at: "",
@@ -61,6 +64,7 @@ export const DEFAULT_ADVERTISEMENTS: Advertisement[] = [
     placement: "sidebar_banner",
     is_external: false,
     is_active: true,
+    banner_type: "standard",
     gradient_theme: "sunset_amber",
     display_order: 2,
     created_at: "",
@@ -81,6 +85,16 @@ function followAd(ad?: Advertisement) {
 }
 
 function AdVisual({ ad, className = "" }: { ad: Advertisement; className?: string }) {
+  if (ad.banner_type === "direct_image") {
+    return (
+      <div className={`relative overflow-hidden ${className}`}>
+        <a href={ad.cta_link || "/"} target={ad.is_external ? "_blank" : "_self"} rel="noreferrer" className="block h-full w-full">
+          <img src={ad.image_url} alt="Promotion" className="h-full w-full rounded-2xl object-cover" />
+        </a>
+      </div>
+    );
+  }
+
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br ${themeStyles[ad?.gradient_theme] ?? themeStyles.blue_glow} ${className}`}>
       {ad?.image_url && <img src={ad.image_url} alt="" className="absolute inset-0 size-full object-cover opacity-35 mix-blend-screen" />}
@@ -134,11 +148,14 @@ export function HeroCarousel({ ads }: { ads: Advertisement[] }) {
 export function SidebarPromotions({ ads }: { ads: Advertisement[] }) {
   const items = (ads ?? []).filter((ad) => ad?.placement === "sidebar_banner" && ad?.is_active).sort((a, b) => (a?.display_order ?? 0) - (b?.display_order ?? 0));
   const visible = items.length ? items : DEFAULT_ADVERTISEMENTS.filter((ad) => ad.placement === "sidebar_banner");
-  return <div className="space-y-4">{visible.slice(0, 3).map((ad, index) => <article key={ad?.id ?? `sidebar-${index}`} className="group relative overflow-hidden rounded-2xl border border-white/10 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-cyan-900/20"><AdVisual ad={ad} className="min-h-[210px]" /><div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20"><div className="h-full w-[68%] animate-pulse bg-cyan-300" style={{ animationDelay: `${index * 180}ms` }} /></div></article>)}</div>;
+  return <div className="space-y-4">{visible.slice(0, 3).map((ad, index) => <article key={ad?.id ?? `sidebar-${index}`} className="group relative overflow-hidden rounded-2xl border border-white/10 shadow-lg transition duration-300 hover:-translate-y-1 hover:shadow-cyan-900/20"><AdVisual ad={ad} className="min-h-[210px]" />{ad.banner_type !== "direct_image" && <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20"><div className="h-full w-[68%] animate-pulse bg-cyan-300" style={{ animationDelay: `${index * 180}ms` }} /></div>}</article>)}</div>;
 }
 
 export function PromoStrip({ ads }: { ads: Advertisement[] }) {
   const ad = (ads ?? []).find((item) => item?.placement === "floating_bar" && item?.is_active) ?? DEFAULT_ADVERTISEMENTS[0];
+  if (ad.banner_type === "direct_image") {
+    return <a href={ad.cta_link || "/"} target={ad.is_external ? "_blank" : "_self"} rel="noreferrer" className="block h-20 w-full overflow-hidden"><img src={ad.image_url} alt="Promotion" className="h-full w-full object-cover" /></a>;
+  }
   return <button type="button" onClick={() => followAd(ad)} className="group flex w-full items-center justify-between gap-3 border-y border-cyan-200/20 bg-[#071923] px-4 py-3 text-left text-white transition hover:bg-[#0b2938]"><span className="flex items-center gap-2 text-sm font-semibold"><Zap className="size-4 text-cyan-300" />{ad?.badge_text ?? "Rankdon"}: {ad?.title ?? "Mock tests with instant analysis"}</span><span className="flex items-center gap-1 text-xs text-cyan-200">{ad?.cta_text ?? "Explore now"}<Sparkles className="size-3 transition group-hover:rotate-12" /></span></button>;
 }
 

@@ -26,6 +26,7 @@ export type Database = {
           placement: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
           is_external: boolean
           is_active: boolean
+          banner_type: "standard" | "direct_image"
           gradient_theme: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
           display_order: number
           created_at: string
@@ -41,6 +42,7 @@ export type Database = {
           placement?: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
           is_external?: boolean
           is_active?: boolean
+          banner_type?: "standard" | "direct_image"
           gradient_theme?: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
           display_order?: number
           created_at?: string
@@ -56,6 +58,7 @@ export type Database = {
           placement?: "hero_carousel" | "sidebar_banner" | "inline_card" | "floating_bar"
           is_external?: boolean
           is_active?: boolean
+          banner_type?: "standard" | "direct_image"
           gradient_theme?: "blue_glow" | "purple_magic" | "sunset_amber" | "emerald_pro"
           display_order?: number
           created_at?: string

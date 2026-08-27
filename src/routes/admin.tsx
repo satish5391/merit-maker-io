@@ -122,6 +122,7 @@ const emptyAd = (): Omit<Advertisement, "id" | "created_at"> => ({
   placement: "hero_carousel",
   is_external: false,
   is_active: true,
+  banner_type: "standard",
   gradient_theme: "blue_glow",
   display_order: 0,
 });
@@ -141,7 +142,11 @@ function AdvertisementManager() {
 
   const saveAd = useMutation({
     mutationFn: async () => {
-      if (!form.title.trim() || !form.cta_link.trim()) throw new Error("Title and CTA link are required");
+      if (form.banner_type === "direct_image") {
+        if (!form.image_url.trim() || !form.cta_link.trim()) throw new Error("Banner image and destination link are required");
+      } else if (!form.title.trim() || !form.cta_link.trim()) {
+        throw new Error("Title and CTA link are required");
+      }
       const payload = { ...form, title: form.title.trim(), subtitle: form.subtitle?.trim() || null, cta_link: form.cta_link.trim() };
       const result = editingId
         ? await supabase.from("advertisements").update(payload).eq("id", editingId)
@@ -184,14 +189,17 @@ function AdvertisementManager() {
         <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
           <div className="flex items-center justify-between gap-3"><div><h3 className="font-display text-lg font-semibold">{editingId ? "Edit promotion" : "New promotion"}</h3><p className="mt-1 text-sm text-muted-foreground">Publish to the learner portal with a live preview.</p></div><Megaphone className="size-5 text-cyan-600" /></div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2"><Label htmlFor="ad-title">Title</Label><Input id="ad-title" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Exam Prep Masterclass" className="mt-1.5" /></div>
-            <div className="sm:col-span-2"><Label htmlFor="ad-subtitle">Subtitle</Label><Textarea id="ad-subtitle" value={form.subtitle ?? ""} onChange={(e) => update("subtitle", e.target.value)} placeholder="A sharper practice loop for your next rank." className="mt-1.5" /></div>
-            <div><Label htmlFor="ad-badge">Badge text</Label><Input id="ad-badge" value={form.badge_text} onChange={(e) => update("badge_text", e.target.value)} className="mt-1.5" /></div>
-            <div><Label htmlFor="ad-cta">CTA text</Label><Input id="ad-cta" value={form.cta_text} onChange={(e) => update("cta_text", e.target.value)} className="mt-1.5" /></div>
-            <div className="sm:col-span-2"><Label htmlFor="ad-link">CTA link</Label><Input id="ad-link" value={form.cta_link} onChange={(e) => update("cta_link", e.target.value)} placeholder="/?tab=packages or https://partner.example" className="mt-1.5" /><label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_external} onChange={(e) => update("is_external", e.target.checked)} /> Open as external affiliate link</label></div>
-            <div><Label htmlFor="ad-placement">Placement</Label><select id="ad-placement" value={form.placement} onChange={(e) => update("placement", e.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="hero_carousel">Hero carousel</option><option value="sidebar_banner">Sidebar banner</option><option value="inline_card">Inline card</option><option value="floating_bar">Floating bar</option></select></div>
-            <div><Label htmlFor="ad-theme">Gradient theme</Label><select id="ad-theme" value={form.gradient_theme} onChange={(e) => update("gradient_theme", e.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="blue_glow">Blue glow</option><option value="purple_magic">Purple magic</option><option value="sunset_amber">Sunset amber</option><option value="emerald_pro">Emerald pro</option></select></div>
-            <div><Label htmlFor="ad-image">Image URL (optional)</Label><Input id="ad-image" value={form.image_url} onChange={(e) => update("image_url", e.target.value)} className="mt-1.5" /></div>
+            <fieldset className="sm:col-span-2"><legend className="text-sm font-medium">Promotion mode</legend><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="flex cursor-pointer items-start gap-2 rounded-md border border-input p-3 text-sm"><input type="radio" name="banner-type" checked={form.banner_type === "standard"} onChange={() => update("banner_type", "standard")} /><span><span className="block font-medium">Standard Promo (With Text &amp; Overlays)</span><span className="text-xs text-muted-foreground">Use the existing campaign card layout.</span></span></label><label className="flex cursor-pointer items-start gap-2 rounded-md border border-input p-3 text-sm"><input type="radio" name="banner-type" checked={form.banner_type === "direct_image"} onChange={() => update("banner_type", "direct_image")} /><span><span className="block font-medium">Direct Image Banner (Single Clickable Creative)</span><span className="text-xs text-muted-foreground">Show one image that links to the destination.</span></span></label></div></fieldset>
+            {form.banner_type === "standard" ? <>
+              <div className="sm:col-span-2"><Label htmlFor="ad-title">Title</Label><Input id="ad-title" value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Exam Prep Masterclass" className="mt-1.5" /></div>
+              <div className="sm:col-span-2"><Label htmlFor="ad-subtitle">Subtitle</Label><Textarea id="ad-subtitle" value={form.subtitle ?? ""} onChange={(e) => update("subtitle", e.target.value)} placeholder="A sharper practice loop for your next rank." className="mt-1.5" /></div>
+              <div><Label htmlFor="ad-badge">Badge text</Label><Input id="ad-badge" value={form.badge_text} onChange={(e) => update("badge_text", e.target.value)} className="mt-1.5" /></div>
+              <div><Label htmlFor="ad-cta">CTA text</Label><Input id="ad-cta" value={form.cta_text} onChange={(e) => update("cta_text", e.target.value)} className="mt-1.5" /></div>
+              <div><Label htmlFor="ad-theme">Gradient theme</Label><select id="ad-theme" value={form.gradient_theme} onChange={(e) => update("gradient_theme", e.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="blue_glow">Blue glow</option><option value="purple_magic">Purple magic</option><option value="sunset_amber">Sunset amber</option><option value="emerald_pro">Emerald pro</option></select></div>
+            </> : null}
+            <div><Label htmlFor="ad-link">{form.banner_type === "direct_image" ? "Destination link" : "CTA link"}</Label><Input id="ad-link" value={form.cta_link} onChange={(e) => update("cta_link", e.target.value)} placeholder="/?tab=packages or https://partner.example" className="mt-1.5" /><label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_external} onChange={(e) => update("is_external", e.target.checked)} /> Open in new tab / external affiliate link</label></div>
+            <div><Label htmlFor="ad-placement">{form.banner_type === "direct_image" ? "Banner placement" : "Placement"}</Label><select id="ad-placement" value={form.placement} onChange={(e) => update("placement", e.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">{form.banner_type === "direct_image" ? <><option value="hero_carousel">Hero (Main)</option><option value="sidebar_banner">Sidebar / Featured Card</option></> : <><option value="hero_carousel">Hero carousel</option><option value="sidebar_banner">Sidebar banner</option><option value="inline_card">Inline card</option><option value="floating_bar">Floating bar</option></>}</select></div>
+            <div><Label htmlFor="ad-image">Banner image{form.banner_type === "standard" ? " (optional)" : ""}</Label><Input id="ad-image" type="url" value={form.image_url} onChange={(e) => update("image_url", e.target.value)} placeholder="https://example.com/banner.jpg" className="mt-1.5" /></div>
             <div><Label htmlFor="ad-order">Display order</Label><Input id="ad-order" type="number" value={form.display_order} onChange={(e) => update("display_order", Number(e.target.value))} className="mt-1.5" /></div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2"><Button onClick={() => saveAd.mutate()} disabled={saveAd.isPending}>{saveAd.isPending ? "Publishing..." : editingId ? "Save promotion" : "Publish promotion"}</Button>{editingId && <Button variant="outline" onClick={() => { setEditingId(null); setForm(emptyAd()); }}>Cancel edit</Button>}</div>
