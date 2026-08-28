@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronDown, GraduationCap, LogOut, ShieldCheck, UserRound } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 import { ADMIN_EMAILS } from "@/lib/admin-access";
 import { getDisplayName } from "@/lib/user-profile";
@@ -18,27 +19,65 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function Header() {
   const auth = useAuth();
-  const queryClient = useQueryClient();
   const isAdmin = Boolean(
     auth.user?.email && ADMIN_EMAILS.includes(auth.user.email.trim().toLowerCase()),
   );
   const profile = auth.profile;
   const displayName = getDisplayName(profile?.name, auth.user?.email);
   const initial = displayName.charAt(0).toUpperCase() || "S";
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["user-notifications", auth.user?.id],
-    enabled: Boolean(auth.user?.id),
-    queryFn: async () => {
+  const [notifications, setNotifications] = useState<
+    Database["public"]["Tables"]["user_notifications"]["Row"][]
+  >([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const userId = auth.user?.id;
+    if (!userId) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
+    const fetchNotifications = async () => {
       const { data, error } = await supabase
         .from("user_notifications")
         .select("*")
-        .eq("user_id", auth.user!.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(20);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+      if (error) {
+        console.error("Error fetching notifications:", error);
+        return;
+      }
+      const nextNotifications = data ?? [];
+      setNotifications(nextNotifications);
+      setUnreadCount(nextNotifications.filter((notification) => !notification.is_read).length);
+    };
+
+    void fetchNotifications();
+
+    const channel = supabase
+      .channel(`user-notifications-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "user_notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const notification = payload.new as Database["public"]["Tables"]["user_notifications"]["Row"];
+          setNotifications((previous) => [notification, ...previous].slice(0, 20));
+          setUnreadCount((count) => count + 1);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [auth.user?.id]);
 
   const handleEnrolledNavigation = (event?: { preventDefault?: () => void }) => {
     event?.preventDefault?.();
@@ -105,7 +144,7 @@ export default function Header() {
                     className="relative rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
                     <Bell className="size-5" />
-                    {notifications.some((notification) => !notification.is_read) && (
+                    {unreadCount > 0 && (
                       <span className="absolute right-1 top-1 size-2 rounded-full bg-rose-500" />
                     )}
                   </button>
@@ -121,13 +160,18 @@ export default function Header() {
                       className="items-start gap-2"
                       onSelect={async () => {
                         if (!notification.is_read) {
-                          await supabase
+                          const { error } = await supabase
                             .from("user_notifications")
                             .update({ is_read: true })
                             .eq("id", notification.id);
-                          void queryClient.invalidateQueries({
-                            queryKey: ["user-notifications", auth.user?.id],
-                          });
+                          if (!error) {
+                            setNotifications((previous) =>
+                              previous.map((item) =>
+                                item.id === notification.id ? { ...item, is_read: true } : item,
+                              ),
+                            );
+                            setUnreadCount((count) => Math.max(0, count - 1));
+                          }
                         }
                       }}
                     >

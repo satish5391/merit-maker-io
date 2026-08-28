@@ -1604,6 +1604,9 @@ type ManagedUser = {
 function UserManagement() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
@@ -1618,53 +1621,65 @@ function UserManagement() {
   const [discount, setDiscount] = useState("");
   const [offerExpiry, setOfferExpiry] = useState("");
   const fetchUsers = useCallback(async () => {
+    setIsLoadingUsers(true);
     try {
-      setIsLoadingUsers(true);
-      const { data, error } = await supabase
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase
         .from("profiles")
-        .select("*")
+        .select("*", { count: "exact" })
         .order("created_at", { ascending: false });
+
+      if (searchTerm.trim()) {
+        query = query.or(
+          `full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`,
+        );
+      }
+
+      if (filterType === "pass") {
+        query = query.eq("has_free_pass", true);
+      }
+
+      const { data, count, error } = await query.range(from, to);
       if (error) {
         console.error("Error fetching users:", error);
         setUsers([]);
-        return;
-      }
-      const rows = (data ?? []) as ManagedUser[];
-      console.log("Fetched profiles:", data);
-      setUsers(rows);
-      try {
-        const { data: attempts } = await supabase.from("attempts").select("user_id");
-        const attemptsByUser = new Map<string, number>();
-        for (const attempt of attempts ?? []) {
-          if (attempt.user_id)
-            attemptsByUser.set(attempt.user_id, (attemptsByUser.get(attempt.user_id) ?? 0) + 1);
+        setTotalCount(0);
+      } else {
+        const rows = (data ?? []) as ManagedUser[];
+        setUsers(rows);
+        setTotalCount(count ?? 0);
+
+        try {
+          const { data: attempts } = await supabase.from("attempts").select("user_id");
+          const attemptsByUser = new Map<string, number>();
+          for (const attempt of attempts ?? []) {
+            if (attempt.user_id)
+              attemptsByUser.set(attempt.user_id, (attemptsByUser.get(attempt.user_id) ?? 0) + 1);
+          }
+          setUsers((current) =>
+            current.map((user) => ({ ...user, attempts: attemptsByUser.get(user.id) ?? 0 })),
+          );
+        } catch (error) {
+          console.error("Unexpected error fetching attempt counts:", error);
         }
-        setUsers((current) =>
-          current.map((user) => ({ ...user, attempts: attemptsByUser.get(user.id) ?? 0 })),
-        );
-      } catch (error) {
-        console.error("Unexpected error fetching attempt counts:", error);
       }
     } catch (error) {
       console.error("Catch error:", error);
       setUsers([]);
+      setTotalCount(0);
     } finally {
       setIsLoadingUsers(false);
     }
-  }, []);
+  }, [currentPage, filterType, pageSize, searchTerm]);
 
   useEffect(() => {
     void fetchUsers();
   }, [fetchUsers]);
-  const displayedUsers = (users || []).filter((user) => {
-    const term = (searchTerm || "").toLowerCase();
-    const phone = user.phone || user.user_metadata?.phone || user.raw_user_meta_data?.phone || "";
-    const nameMatch = (user.full_name || "").toLowerCase().includes(term);
-    const emailMatch = (user.email || "").toLowerCase().includes(term);
-    const phoneMatch = phone.toLowerCase().includes(term);
-    const matchesSearch = !term || nameMatch || emailMatch || phoneMatch;
-    return matchesSearch && (filterType === "all" || (filterType === "pass" && user.has_free_pass));
-  });
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType, searchTerm]);
   const handleSavePass = async (userId: string = targetUserId ?? selected[0] ?? "") => {
     if (!userId) return;
     const expiryDate =
@@ -1825,14 +1840,13 @@ function UserManagement() {
                 <input
                   type="checkbox"
                   checked={
-                    displayedUsers.length > 0 &&
-                    displayedUsers.every((user) => selected.includes(user.id))
+                    users.length > 0 && users.every((user) => selected.includes(user.id))
                   }
                   onChange={() =>
                     setSelected(
-                      displayedUsers.every((user) => selected.includes(user.id))
+                      users.every((user) => selected.includes(user.id))
                         ? []
-                        : displayedUsers.map((user) => user.id),
+                        : users.map((user) => user.id),
                     )
                   }
                 />
@@ -1862,14 +1876,14 @@ function UserManagement() {
                   No users found.
                 </td>
               </tr>
-            ) : displayedUsers.length === 0 ? (
+            ) : users.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-6 text-center text-slate-500">
                   No users found.
                 </td>
               </tr>
             ) : (
-              displayedUsers.map((user) => (
+              users.map((user) => (
                 <tr key={user.id} className="border-t border-border">
                   <td className="p-3">
                     <input
@@ -1949,6 +1963,30 @@ function UserManagement() {
             )}
           </tbody>
         </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span>
+          Showing {totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
+          {Math.min(currentPage * pageSize, totalCount)} of {totalCount} users
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="rounded-md"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-md"
+            disabled={currentPage * pageSize >= totalCount}
+            onClick={() => setCurrentPage((page) => page + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
       {action && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
