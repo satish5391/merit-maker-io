@@ -54,6 +54,8 @@ function formatDuration(total: number) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+const maxViolations = 3;
+
 function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
@@ -104,8 +106,11 @@ function TestPage() {
   const [sectionAlertOpen, setSectionAlertOpen] = useState(false);
   const [sectionSummaryOpen, setSectionSummaryOpen] = useState(false);
   const [finalSummaryOpen, setFinalSummaryOpen] = useState(false);
+  const [violationsCount, setViolationsCount] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const hydratedSessionRef = useRef(false);
   const submittedRef = useRef(false);
+  const violationsCountRef = useRef(0);
 
   useEffect(() => {
     if (name.trim()) return;
@@ -289,6 +294,8 @@ function TestPage() {
 
         // 1. Defensively resolve current user session
         const studentIdentifier = user?.email || name.trim() || "Student";
+        const integrityStatus: "clean" | "flagged" =
+          violationsCountRef.current > 0 ? "flagged" : "clean";
 
         const insertPayload = {
           test_id: test.id,
@@ -302,6 +309,8 @@ function TestPage() {
           accuracy,
           time_taken_seconds: Math.max(0, timeTaken),
           answers,
+          tab_switches_count: violationsCountRef.current,
+          integrity_status: integrityStatus,
           status: "completed" as const,
         };
 
@@ -495,6 +504,50 @@ function TestPage() {
     };
   }, [isLive, persistSession, started]);
 
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const fullscreen = document.fullscreenElement !== null;
+      setIsFullscreen(fullscreen);
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    onFullscreenChange();
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    if (!started) return;
+
+    let visibilityHandled = false;
+    const handleViolation = () => {
+      if (!document.hidden || visibilityHandled || submittedRef.current) return;
+      visibilityHandled = true;
+      const nextCount = violationsCountRef.current + 1;
+      violationsCountRef.current = nextCount;
+      setViolationsCount(nextCount);
+
+      if (nextCount >= maxViolations) {
+        window.alert("Your exam has been automatically submitted due to multiple tab-switch violations.");
+        void submit(true);
+      } else {
+        toast.warning(
+          `Warning: Tab switching is strictly prohibited! (${nextCount}/${maxViolations} warnings used)`,
+        );
+      }
+    };
+    const handleReturn = () => {
+      if (!document.hidden) visibilityHandled = false;
+    };
+
+    document.addEventListener("visibilitychange", handleViolation);
+    window.addEventListener("blur", handleViolation);
+    window.addEventListener("focus", handleReturn);
+    return () => {
+      document.removeEventListener("visibilitychange", handleViolation);
+      window.removeEventListener("blur", handleViolation);
+      window.removeEventListener("focus", handleReturn);
+    };
+  }, [started, submit]);
+
   if (!test || !questions || questions.length === 0) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
   }
@@ -601,7 +654,15 @@ function TestPage() {
             <Button
               className="mt-6 w-full"
               size="lg"
-              onClick={() => {
+                onClick={async () => {
+                  if (!document.fullscreenElement) {
+                    try {
+                      await document.documentElement.requestFullscreen();
+                    } catch {
+                      toast.error("Fullscreen is required to begin the test.");
+                      return;
+                    }
+                  }
                 setStudentName(name.trim());
                 setSecondsLeft(test.duration_minutes * 60);
                 const sectionalEnabled = sectionalTimingEnabled;
@@ -615,7 +676,7 @@ function TestPage() {
                 setStarted(true);
               }}
             >
-              {effectiveAttemptCount > 0 ? "Retake test" : "Start test"}
+              Enter Fullscreen to Begin Test
             </Button>
           )}
 
@@ -682,7 +743,14 @@ function TestPage() {
   };
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div
+      className="mx-auto max-w-5xl select-none px-4 py-6"
+      onContextMenu={(event) => event.preventDefault()}
+      onCopy={(event) => event.preventDefault()}
+      onCut={(event) => event.preventDefault()}
+      onPaste={(event) => event.preventDefault()}
+      onDragStart={(event) => event.preventDefault()}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <Link
@@ -1088,6 +1156,26 @@ function TestPage() {
                 Yes, Submit Test
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {started && !isFullscreen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center shadow-2xl">
+            <h2 className="text-lg font-semibold">Please return to fullscreen to continue your exam</h2>
+            <Button
+              className="mt-5"
+              onClick={async () => {
+                try {
+                  await document.documentElement.requestFullscreen();
+                } catch {
+                  toast.error("Fullscreen is required to continue the exam.");
+                }
+              }}
+            >
+              Return to Fullscreen
+            </Button>
           </div>
         </div>
       )}

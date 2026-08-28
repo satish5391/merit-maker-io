@@ -74,6 +74,8 @@ export type Database = {
           test_id: string;
           time_taken_seconds: number;
           wrong_count: number;
+          tab_switches_count: number;
+          integrity_status: "clean" | "flagged";
           status: "in_progress" | "completed";
         };
         Insert: {
@@ -90,6 +92,8 @@ export type Database = {
           user_id?: string | null;
           time_taken_seconds?: number;
           wrong_count?: number;
+          tab_switches_count?: number;
+          integrity_status?: "clean" | "flagged";
           status?: "in_progress" | "completed";
         };
         Update: {
@@ -106,6 +110,8 @@ export type Database = {
           user_id?: string | null;
           time_taken_seconds?: number;
           wrong_count?: number;
+          tab_switches_count?: number;
+          integrity_status?: "clean" | "flagged";
           status?: "in_progress" | "completed";
         };
         Relationships: [
