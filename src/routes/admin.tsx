@@ -1,7 +1,31 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, X, Megaphone, Search, Users } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+  Megaphone,
+  Search,
+  Users,
+  FileText,
+  Package,
+  BookOpen,
+  Sparkles,
+  Clock,
+  CheckCircle2,
+  Layers,
+  Upload,
+  Download,
+  AlertCircle,
+  ShieldCheck,
+  Bell,
+  Gift,
+  KeyRound,
+  Ban,
+  Check,
+} from "lucide-react";
 import {
   DEFAULT_ADVERTISEMENTS,
   HeroCarousel,
@@ -88,22 +112,28 @@ function Admin() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">
-        Checking admin access...
+      <div className="flex h-[80vh] items-center justify-center">
+        <div className="flex items-center gap-3 text-slate-500">
+          <span className="size-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <span className="text-sm font-medium">Verifying admin credentials...</span>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16">
-        <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
-          <h1 className="text-xl font-semibold">Access Denied — Please Log In</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            You must be logged in to access the Admin panel.
+      <div className="mx-auto max-w-md px-4 py-20">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+            <AlertCircle className="size-6" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-900">Access Denied</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Please log in with an administrator account to access the control panel.
           </p>
-          <Button asChild className="mt-6">
-            <Link to="/">Back to Home</Link>
+          <Button asChild className="mt-6 w-full bg-blue-600 hover:bg-blue-700">
+            <Link to="/">Return to Home</Link>
           </Button>
         </div>
       </div>
@@ -112,14 +142,17 @@ function Admin() {
 
   if (!ADMIN_EMAILS.includes(email)) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16">
-        <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)]">
-          <h1 className="text-xl font-semibold">Unauthorized Access</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            You do not have administrative privileges to view this page.
+      <div className="mx-auto max-w-md px-4 py-20">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+            <ShieldCheck className="size-6" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-900">Unauthorized Access</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Your account (<strong className="text-slate-700">{email}</strong>) does not have administrative permissions.
           </p>
-          <Button asChild className="mt-6">
-            <Link to="/">Back to Home</Link>
+          <Button asChild variant="outline" className="mt-6 w-full">
+            <Link to="/">Return to Home</Link>
           </Button>
         </div>
       </div>
@@ -129,374 +162,15 @@ function Admin() {
   return <AdminDashboard />;
 }
 
-const emptyAd = (): Omit<Advertisement, "id" | "created_at"> => ({
-  title: "",
-  subtitle: "",
-  badge_text: "Featured",
-  image_url: "",
-  cta_text: "Explore Now",
-  cta_link: "/",
-  placement: "hero_carousel",
-  is_external: false,
-  is_active: true,
-  banner_type: "standard",
-  gradient_theme: "blue_glow",
-  display_order: 0,
-});
-
-function AdvertisementManager() {
-  const qc = useQueryClient();
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyAd());
-  const { data: ads = [], isLoading } = useQuery({
-    queryKey: ["advertisements", "admin"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("advertisements")
-        .select("*")
-        .order("display_order", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Advertisement[];
-    },
-  });
-
-  const saveAd = useMutation({
-    mutationFn: async () => {
-      if (form.banner_type === "direct_image") {
-        if (!form.image_url.trim() || !form.cta_link.trim())
-          throw new Error("Banner image and destination link are required");
-      } else if (!form.title.trim() || !form.cta_link.trim()) {
-        throw new Error("Title and CTA link are required");
-      }
-      const payload = {
-        ...form,
-        title: form.title.trim(),
-        subtitle: form.subtitle?.trim() || null,
-        cta_link: form.cta_link.trim(),
-      };
-      const result = editingId
-        ? await supabase.from("advertisements").update(payload).eq("id", editingId)
-        : await supabase.from("advertisements").insert(payload);
-      if (result.error) throw result.error;
-    },
-    onSuccess: () => {
-      toast.success(editingId ? "Promotion updated" : "Promotion published");
-      setEditingId(null);
-      setForm(emptyAd());
-      void qc.invalidateQueries({ queryKey: ["advertisements"] });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const toggleAd = useMutation({
-    mutationFn: async (ad: Advertisement) => {
-      const { error } = await supabase
-        .from("advertisements")
-        .update({ is_active: !ad.is_active })
-        .eq("id", ad.id);
-      if (error) throw error;
-    },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["advertisements"] }),
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const deleteAd = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("advertisements").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Promotion deleted");
-      void qc.invalidateQueries({ queryKey: ["advertisements"] });
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const update = (key: keyof typeof form, value: string | boolean | number) =>
-    setForm((current) => ({ ...current, [key]: value }));
-  const previewAd = { ...form, id: "preview", created_at: "" } as Advertisement;
-
-  return (
-    <div className="mt-6 space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
-        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="font-display text-lg font-semibold">
-                {editingId ? "Edit promotion" : "New promotion"}
-              </h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Publish to the learner portal with a live preview.
-              </p>
-            </div>
-            <Megaphone className="size-5 text-cyan-600" />
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <fieldset className="sm:col-span-2">
-              <legend className="text-sm font-medium">Promotion mode</legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-start gap-2 rounded-md border border-input p-3 text-sm">
-                  <input
-                    type="radio"
-                    name="banner-type"
-                    checked={form.banner_type === "standard"}
-                    onChange={() => update("banner_type", "standard")}
-                  />
-                  <span>
-                    <span className="block font-medium">
-                      Standard Promo (With Text &amp; Overlays)
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Use the existing campaign card layout.
-                    </span>
-                  </span>
-                </label>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md border border-input p-3 text-sm">
-                  <input
-                    type="radio"
-                    name="banner-type"
-                    checked={form.banner_type === "direct_image"}
-                    onChange={() => update("banner_type", "direct_image")}
-                  />
-                  <span>
-                    <span className="block font-medium">
-                      Direct Image Banner (Single Clickable Creative)
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Show one image that links to the destination.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
-            {form.banner_type === "standard" ? (
-              <>
-                <div className="sm:col-span-2">
-                  <Label htmlFor="ad-title">Title</Label>
-                  <Input
-                    id="ad-title"
-                    value={form.title}
-                    onChange={(e) => update("title", e.target.value)}
-                    placeholder="Exam Prep Masterclass"
-                    className="mt-1.5"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label htmlFor="ad-subtitle">Subtitle</Label>
-                  <Textarea
-                    id="ad-subtitle"
-                    value={form.subtitle ?? ""}
-                    onChange={(e) => update("subtitle", e.target.value)}
-                    placeholder="A sharper practice loop for your next rank."
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="ad-badge">Badge text</Label>
-                  <Input
-                    id="ad-badge"
-                    value={form.badge_text}
-                    onChange={(e) => update("badge_text", e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="ad-cta">CTA text</Label>
-                  <Input
-                    id="ad-cta"
-                    value={form.cta_text}
-                    onChange={(e) => update("cta_text", e.target.value)}
-                    className="mt-1.5"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="ad-theme">Gradient theme</Label>
-                  <select
-                    id="ad-theme"
-                    value={form.gradient_theme}
-                    onChange={(e) => update("gradient_theme", e.target.value)}
-                    className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="blue_glow">Blue glow</option>
-                    <option value="purple_magic">Purple magic</option>
-                    <option value="sunset_amber">Sunset amber</option>
-                    <option value="emerald_pro">Emerald pro</option>
-                  </select>
-                </div>
-              </>
-            ) : null}
-            <div>
-              <Label htmlFor="ad-link">
-                {form.banner_type === "direct_image" ? "Destination link" : "CTA link"}
-              </Label>
-              <Input
-                id="ad-link"
-                value={form.cta_link}
-                onChange={(e) => update("cta_link", e.target.value)}
-                placeholder="/?tab=packages or https://partner.example"
-                className="mt-1.5"
-              />
-              <label className="mt-2 flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.is_external}
-                  onChange={(e) => update("is_external", e.target.checked)}
-                />{" "}
-                Open in new tab / external affiliate link
-              </label>
-            </div>
-            <div>
-              <Label htmlFor="ad-placement">
-                {form.banner_type === "direct_image" ? "Banner placement" : "Placement"}
-              </Label>
-              <select
-                id="ad-placement"
-                value={form.placement}
-                onChange={(e) => update("placement", e.target.value)}
-                className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {form.banner_type === "direct_image" ? (
-                  <>
-                    <option value="hero_carousel">Hero (Main)</option>
-                    <option value="sidebar_banner">Sidebar / Featured Card</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="hero_carousel">Hero carousel</option>
-                    <option value="sidebar_banner">Sidebar banner</option>
-                    <option value="inline_card">Inline card</option>
-                    <option value="floating_bar">Floating bar</option>
-                  </>
-                )}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="ad-image">
-                Banner image{form.banner_type === "standard" ? " (optional)" : ""}
-              </Label>
-              <Input
-                id="ad-image"
-                type="url"
-                value={form.image_url}
-                onChange={(e) => update("image_url", e.target.value)}
-                placeholder="https://example.com/banner.jpg"
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="ad-order">Display order</Label>
-              <Input
-                id="ad-order"
-                type="number"
-                value={form.display_order}
-                onChange={(e) => update("display_order", Number(e.target.value))}
-                className="mt-1.5"
-              />
-            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button onClick={() => saveAd.mutate()} disabled={saveAd.isPending}>
-              {saveAd.isPending
-                ? "Publishing..."
-                : editingId
-                  ? "Save promotion"
-                  : "Publish promotion"}
-            </Button>
-            {editingId && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(emptyAd());
-                }}
-              >
-                Cancel edit
-              </Button>
-            )}
-          </div>
-        </section>
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-display text-lg font-semibold">Live preview</h3>
-            <Badge variant="secondary">Updates as you type</Badge>
-          </div>
-          {form.placement === "sidebar_banner" ? (
-            <SidebarPromotions ads={[previewAd]} />
-          ) : (
-            <HeroCarousel ads={[previewAd]} />
-          )}
-        </section>
-      </div>
-      <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-display text-lg font-semibold">Published promotions</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage every campaign across the portal.
-            </p>
-          </div>
-          <Badge>{ads.length} live records</Badge>
-        </div>
-        {isLoading ? (
-          <p className="mt-5 text-sm text-muted-foreground">Loading promotions...</p>
-        ) : (
-          <div className="mt-5 space-y-3">
-            {ads.length === 0 && (
-              <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
-                No saved promotions yet. Rankdon is using its default campaign cards.
-              </p>
-            )}
-            {ads.map((ad) => (
-              <div
-                key={ad.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4"
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{ad.title}</span>
-                    <Badge variant="secondary">{ad.placement}</Badge>
-                    <Badge variant={ad.is_active ? "default" : "outline"}>
-                      {ad.is_active ? "Active" : "Paused"}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {ad.cta_link} · order {ad.display_order}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingId(ad.id);
-                      setForm({ ...ad });
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => toggleAd.mutate(ad)}>
-                    {ad.is_active ? "Pause" : "Activate"}
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={() => deleteAd.mutate(ad.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-      <p className="text-xs text-muted-foreground">
-        Default campaigns remain available on the home page when no active records exist:{" "}
-        {DEFAULT_ADVERTISEMENTS.length} fallback cards configured.
-      </p>
-    </div>
-  );
-}
-
 function AdminDashboard() {
   const qc = useQueryClient();
-  const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: fetchTests });
+  const { data: tests, isLoading: isLoadingTests } = useQuery({
+    queryKey: ["tests"],
+    queryFn: fetchTests,
+  });
+
+  const [activeTab, setActiveTab] = useState<"tests" | "packages" | "notes" | "ads" | "users">("tests");
+  const [testSearch, setTestSearch] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -634,7 +308,7 @@ function AdminDashboard() {
       return testId!;
     },
     onSuccess: (testId) => {
-      toast.success(editingId ? "Test updated" : "Test created");
+      toast.success(editingId ? "Test updated successfully" : "Test published successfully");
       resetForm();
       qc.invalidateQueries({ queryKey: ["tests"] });
       qc.invalidateQueries({ queryKey: ["tests-with-stats"] });
@@ -691,7 +365,6 @@ function AdminDashboard() {
             }))
           : [emptyDraft()],
       );
-      // load sections if present on test
       const rawSections = (test as any).sections;
       if (Array.isArray(rawSections) && rawSections.length > 0) setSections(rawSections);
       setSectionalTiming(Boolean((test as any).sectional_timing));
@@ -829,10 +502,630 @@ function AdminDashboard() {
     }
   };
 
-  // Packages & combos manager state
-  const [activeTab, setActiveTab] = useState<"tests" | "packages" | "notes" | "ads" | "users">(
-    "tests",
+  const filteredTests = (tests ?? []).filter((t) => {
+    const q = testSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      t.title.toLowerCase().includes(q) ||
+      t.category.toLowerCase().includes(q) ||
+      t.subject.toLowerCase().includes(q)
+    );
+  });
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc]">
+      {/* Top Header Banner */}
+      <div className="border-b border-slate-200 bg-white shadow-xs">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-blue-600 font-bold text-white shadow-xs text-xs">
+                  ⚡
+                </span>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900">Admin Control Center</h1>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Design mock exams, configure negative marking rules, manage packages, and control student accounts.
+              </p>
+            </div>
+          </div>
+
+          {/* Clean Segmented Tab Navigation */}
+          <div className="mt-6 flex flex-wrap gap-2 border-b border-slate-100 pb-2">
+            {[
+              { id: "tests", label: "Tests & Questions", icon: FileText },
+              { id: "packages", label: "Packages & Combos", icon: Package },
+              { id: "notes", label: "Study Materials", icon: BookOpen },
+              { id: "ads", label: "Promotions", icon: Sparkles },
+              { id: "users", label: "User Management", icon: Users },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon className="size-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Sections */}
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {activeTab === "tests" && (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            {/* Left Column: Create & Edit Test Form */}
+            <div className="lg:col-span-6 space-y-6">
+              <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                      {editingId ? <Pencil className="size-4" /> : <Plus className="size-4" />}
+                    </div>
+                    <div>
+                      <h2 className="font-display font-semibold text-slate-900">
+                        {editingId ? "Edit Test Configuration" : "Create New Test"}
+                      </h2>
+                      <p className="text-xs text-slate-500">Define marking rules and test structure.</p>
+                    </div>
+                  </div>
+                  {editingId && (
+                    <Button variant="ghost" size="sm" onClick={resetForm} className="text-xs text-slate-500 hover:text-slate-900">
+                      <X className="mr-1 size-3.5" /> Cancel Edit
+                    </Button>
+                  )}
+                </div>
+
+                <div className="mt-5 space-y-4">
+                  {/* Title */}
+                  <div>
+                    <Label htmlFor="title" className="text-xs font-semibold text-slate-700">Test Title</Label>
+                    <Input
+                      id="title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Reasoning Tier 1 Mock Test 02"
+                      className="mt-1.5 h-10 rounded-xl"
+                    />
+                  </div>
+
+                  {/* Category & Subject */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="category" className="text-xs font-semibold text-slate-700">Exam Category</Label>
+                      <Input
+                        id="category"
+                        list="category-options"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                        placeholder="e.g. SSC CGL"
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                      <datalist id="category-options">
+                        {Array.from(
+                          new Set([...(tests ?? []).map((t) => t.category), ...CATEGORY_SUGGESTIONS]),
+                        ).map((c) => (
+                          <option key={c} value={c} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div>
+                      <Label htmlFor="subject" className="text-xs font-semibold text-slate-700">Subject</Label>
+                      <Input
+                        id="subject"
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        placeholder="e.g. General Intelligence"
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Duration & Marking */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <Label htmlFor="duration" className="text-xs font-semibold text-slate-700">Duration (Mins)</Label>
+                      <Input
+                        id="duration"
+                        type="number"
+                        min={1}
+                        value={duration}
+                        onChange={(e) => setDuration(Number(e.target.value))}
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pos" className="text-xs font-semibold text-slate-700">+ Mark / Right</Label>
+                      <Input
+                        id="pos"
+                        type="number"
+                        step="0.25"
+                        min={0}
+                        value={positive}
+                        onChange={(e) => setPositive(Number(e.target.value))}
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="neg" className="text-xs font-semibold text-slate-700">- Mark / Wrong</Label>
+                      <Input
+                        id="neg"
+                        type="number"
+                        step="0.25"
+                        min={0}
+                        value={negative}
+                        onChange={(e) => setNegative(Number(e.target.value))}
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cutoff Settings */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="cutoff" className="text-xs font-semibold text-slate-700">Expected Cutoff Score</Label>
+                      <Input
+                        id="cutoff"
+                        type="number"
+                        min={0}
+                        value={cutoff}
+                        onChange={(e) => setCutoff(e.target.value === "" ? "" : Number(e.target.value))}
+                        placeholder="Auto (40% default)"
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="attempts" className="text-xs font-semibold text-slate-700">Max Attempt Limit</Label>
+                      <Input
+                        id="attempts"
+                        value={maxAttempts}
+                        onChange={(e) => setMaxAttempts(e.target.value)}
+                        placeholder="1 or Unlimited"
+                        className="mt-1.5 h-10 rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Test Access & Pricing Box */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                    <Label className="text-xs font-semibold text-slate-800">Test Access Type</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { id: "free", label: "Free For All" },
+                        { id: "paid", label: "Paid (Standalone)" },
+                        { id: "package_only", label: "Combo / Package Exclusive" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setAccessType(item.id as any)}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all ${
+                            accessType === item.id
+                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {accessType === "paid" && (
+                      <div className="mt-3 grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                        <div>
+                          <Label htmlFor="price" className="text-xs text-slate-600">Original Price (₹)</Label>
+                          <Input
+                            id="price"
+                            type="number"
+                            min={0}
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="e.g. 199"
+                            className="mt-1 h-9 rounded-lg bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="discountPrice" className="text-xs text-slate-600">Offer Price (₹)</Label>
+                          <Input
+                            id="discountPrice"
+                            type="number"
+                            min={0}
+                            value={discountPrice}
+                            onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="e.g. 99"
+                            className="mt-1 h-9 rounded-lg bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Live Test Window */}
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
+                    <label className="flex items-center gap-2.5 text-xs font-bold text-cyan-900 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isLive}
+                        onChange={(e) => {
+                          const enabled = e.target.checked;
+                          setIsLive(enabled);
+                          if (enabled) setSectionalTiming(false);
+                        }}
+                        className="size-4 rounded text-blue-600"
+                      />
+                      <span>Enable Live Test Schedule (Time-Bound)</span>
+                    </label>
+
+                    {isLive && (
+                      <div className="mt-3 grid gap-3 sm:grid-cols-3 pt-3 border-t border-cyan-200/60">
+                        <div>
+                          <Label htmlFor="live-start" className="text-[11px] font-semibold text-cyan-900">Window Start</Label>
+                          <Input
+                            id="live-start"
+                            type="datetime-local"
+                            value={startTime}
+                            onChange={(e) => setStartTime(e.target.value)}
+                            className="mt-1 h-8 text-xs rounded-lg bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="live-end" className="text-[11px] font-semibold text-cyan-900">Window End</Label>
+                          <Input
+                            id="live-end"
+                            type="datetime-local"
+                            value={endTime}
+                            onChange={(e) => setEndTime(e.target.value)}
+                            className="mt-1 h-8 text-xs rounded-lg bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="result-declaration" className="text-[11px] font-semibold text-cyan-900">Result Declaration</Label>
+                          <Input
+                            id="result-declaration"
+                            type="datetime-local"
+                            value={resultDeclarationTime}
+                            onChange={(e) => setResultDeclarationTime(e.target.value)}
+                            className="mt-1 h-8 text-xs rounded-lg bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section Configuration */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers className="size-4 text-slate-500" />
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Exam Sections</h4>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setSections((s) => [
+                            ...s,
+                            {
+                              id: `section-${Date.now()}`,
+                              name: `Section ${s.length + 1}`,
+                              subject,
+                              duration_minutes: duration,
+                            },
+                          ])
+                        }
+                        className="h-7 text-xs"
+                      >
+                        <Plus className="mr-1 size-3" /> Add Section
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      <label className="flex items-center gap-2 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={sectionalTiming}
+                          disabled={isLive}
+                          onChange={(e) => setSectionalTiming(e.target.checked)}
+                          className="size-3.5 rounded text-blue-600"
+                        />
+                        <span>Enforce strict sectional timing timers</span>
+                      </label>
+
+                      {sections.map((s, idx) => (
+                        <div key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs">
+                          <Input
+                            value={s.name}
+                            onChange={(e) =>
+                              setSections((prev) =>
+                                prev.map((ps, i) => (i === idx ? { ...ps, name: e.target.value } : ps)),
+                              )
+                            }
+                            placeholder="Section Name"
+                            className="h-8 bg-white"
+                          />
+                          <Input
+                            value={s.subject ?? subject}
+                            onChange={(e) =>
+                              setSections((prev) =>
+                                prev.map((ps, i) => (i === idx ? { ...ps, subject: e.target.value } : ps)),
+                              )
+                            }
+                            placeholder="Subject"
+                            className="h-8 bg-white"
+                          />
+                          <Input
+                            type="number"
+                            value={s.duration_minutes}
+                            onChange={(e) =>
+                              setSections((prev) =>
+                                prev.map((ps, i) =>
+                                  i === idx ? { ...ps, duration_minutes: Number(e.target.value) } : ps,
+                                ),
+                              )
+                            }
+                            placeholder="Mins"
+                            className="h-8 w-20 bg-white"
+                          />
+                          {sections.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSections((prev) => prev.filter((_, i) => i !== idx))}
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Question Editor Area */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-800 text-sm">Question Bank ({questions.length})</h3>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadBulkTemplate}
+                          className="h-7 text-xs"
+                        >
+                          <Download className="mr-1 size-3" /> Template
+                        </Button>
+                        <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium hover:bg-slate-50">
+                          <Upload className="mr-1 size-3" /> Import Excel/CSV
+                          <input
+                            type="file"
+                            accept=".csv,.xlsx"
+                            className="sr-only"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) void importBulkQuestions(file);
+                              event.currentTarget.value = "";
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                      {questions.map((q, i) => (
+                        <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-slate-700">Question #{i + 1}</span>
+                            {questions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
+                                className="text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            )}
+                          </div>
+
+                          <Textarea
+                            value={q.body}
+                            onChange={(e) => patch(i, { body: e.target.value })}
+                            placeholder="Type the question content or problem statement here..."
+                            className="bg-white min-h-[60px]"
+                          />
+
+                          <div className="grid grid-cols-2 gap-2">
+                            {q.options.map((opt, oi) => (
+                              <div
+                                key={oi}
+                                className={`flex items-center gap-2 rounded-lg border p-1.5 transition-all bg-white ${
+                                  q.correct_index === oi ? "border-emerald-500 ring-1 ring-emerald-500/20" : "border-slate-200"
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`correct-${i}`}
+                                  checked={q.correct_index === oi}
+                                  onChange={() => patch(i, { correct_index: oi })}
+                                  className="size-3.5 accent-emerald-600"
+                                />
+                                <input
+                                  value={opt}
+                                  onChange={(e) =>
+                                    patch(i, {
+                                      options: q.options.map((o, idx) => (idx === oi ? e.target.value : o)),
+                                    })
+                                  }
+                                  placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                                  className="w-full text-xs outline-none bg-transparent"
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          <div>
+                            <Textarea
+                              value={q.explanation}
+                              onChange={(e) => patch(i, { explanation: e.target.value })}
+                              placeholder="Step-by-step solution / explanation (Optional)..."
+                              className="bg-white min-h-[50px] text-xs"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setQuestions((prev) => [...prev, { ...emptyDraft(), sectionId: sections[0]?.id }])
+                      }
+                      className="w-full text-xs"
+                    >
+                      <Plus className="mr-1 size-3.5" /> Add Another Question
+                    </Button>
+                  </div>
+
+                  <Button
+                    onClick={() => saveTest.mutate()}
+                    disabled={saveTest.isPending}
+                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-xs"
+                  >
+                    {saveTest.isPending
+                      ? "Saving..."
+                      : editingId
+                        ? "Update Test"
+                        : "Save & Publish Mock Test"}
+                  </Button>
+                </div>
+              </section>
+            </div>
+
+            {/* Right Column: Published Tests Inventory */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+                  <Input
+                    placeholder="Search tests by title, subject or exam..."
+                    value={testSearch}
+                    onChange={(e) => setTestSearch(e.target.value)}
+                    className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-slate-50 focus:bg-white"
+                  />
+                </div>
+                <Badge variant="secondary" className="px-3 py-1 font-semibold">
+                  {filteredTests.length} Tests
+                </Badge>
+              </div>
+
+              {isLoadingTests ? (
+                <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+                  <span className="size-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                </div>
+              ) : filteredTests.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+                  No mock tests match your search criteria.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredTests.map((t) => {
+                    const isPaid = (t as any).is_free === false || (t as any).access_type === "paid";
+                    return (
+                      <div
+                        key={t.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-all hover:border-slate-300"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-slate-900">{t.title}</span>
+                              {isPaid ? (
+                                <Badge className="bg-rose-50 text-rose-700 border-rose-200">
+                                  PAID ₹{(t as any).discount_price ?? (t as any).price ?? "—"}
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">FREE</Badge>
+                              )}
+                              <Badge variant="outline">{t.category}</Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Clock className="size-3.5 text-slate-400" /> {t.duration_minutes} mins
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <CheckCircle2 className="size-3.5 text-emerald-600" /> +{t.positive_marks} / -{t.negative_marks}
+                              </span>
+                              <span className="text-slate-400">• Subject: {t.subject}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void startEdit(t.id)}
+                              className="h-8 rounded-lg text-xs"
+                            >
+                              <Pencil className="mr-1 size-3" /> Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => deleteTest.mutate(t.id)}
+                              className="h-8 w-8 p-0 rounded-lg"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Expandable Question Preview */}
+                        <div className="mt-3 border-t border-slate-100 pt-3">
+                          <Accordion type="single" collapsible>
+                            <AccordionItem value="qs" className="border-none">
+                              <AccordionTrigger className="py-0 text-xs text-blue-600 hover:no-underline">
+                                View Questions for this Test
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-2">
+                                <QuestionList testId={t.id} />
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "packages" && <PackagesManager />}
+        {activeTab === "notes" && <StudyMaterialsManager />}
+        {activeTab === "ads" && <AdvertisementManager />}
+        {activeTab === "users" && <UserManagement />}
+      </div>
+    </div>
   );
+}
+
+function PackagesManager() {
+  const qc = useQueryClient();
+  const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: fetchTests });
   const [pkgTitle, setPkgTitle] = useState("");
   const [pkgDescription, setPkgDescription] = useState("");
   const [pkgCategory, setPkgCategory] = useState("General");
@@ -877,8 +1170,7 @@ function AdminDashboard() {
       return pkg;
     },
     onSuccess: () => {
-      toast.success("Package created");
-      // reset package form
+      toast.success("Package created successfully");
       setPkgTitle("");
       setPkgDescription("");
       setPkgCategory("General");
@@ -909,677 +1201,341 @@ function AdminDashboard() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10">
-      <h1 className="font-display text-2xl font-bold md:text-3xl">Admin dashboard</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Create, edit and delete mock tests with exam categories, marking schemes, explanations and
-        attempt limits.
-      </p>
-
-      <div className="mt-8 grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-display text-lg font-semibold">
-              {editingId ? "Edit test" : "New test"}
-            </h2>
-            {editingId && (
-              <Button variant="ghost" size="sm" onClick={resetForm}>
-                <X className="mr-1 size-4" /> Cancel edit
-              </Button>
-            )}
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+      {/* Create Package Form */}
+      <div className="lg:col-span-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+            <Package className="size-5 text-blue-600" />
+            <h3 className="font-semibold text-slate-900">Create Test Series Package</h3>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <Label htmlFor="title">Test title</Label>
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Reasoning Mock Test 2"
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="category">Exam category</Label>
-              <Input
-                id="category"
-                list="category-options"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Junior Assistant"
-                className="mt-1.5"
-              />
-              <datalist id="category-options">
-                {Array.from(
-                  new Set([...(tests ?? []).map((t) => t.category), ...CATEGORY_SUGGESTIONS]),
-                ).map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <Label htmlFor="subject">Subject</Label>
-              <Input
-                id="subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="duration">Duration (minutes)</Label>
-              <Input
-                id="duration"
-                type="number"
-                min={1}
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="mt-1.5"
-              />
-            </div>
-            <fieldset className="sm:col-span-2 rounded-lg border border-cyan-200 bg-cyan-50/50 p-4">
-              <label className="flex items-center gap-2 text-sm font-semibold">
-                <input
-                  type="checkbox"
-                  checked={isLive}
-                  onChange={(e) => {
-                    const enabled = e.target.checked;
-                    setIsLive(enabled);
-                    if (enabled) setSectionalTiming(false);
-                  }}
-                />
-                Set as Live Test (Time-Bound)
-              </label>
-              {isLive && (
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <Label htmlFor="live-start">Live Window Start</Label>
-                    <Input
-                      id="live-start"
-                      type="datetime-local"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="live-end">Live Window End</Label>
-                    <Input
-                      id="live-end"
-                      type="datetime-local"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="result-declaration">Result Declaration Date &amp; Time</Label>
-                    <Input
-                      id="result-declaration"
-                      type="datetime-local"
-                      value={resultDeclarationTime}
-                      onChange={(e) => setResultDeclarationTime(e.target.value)}
-                      className="mt-1.5"
-                    />
-                  </div>
-                </div>
-              )}
-            </fieldset>
-            <div>
-              <Label htmlFor="attempts">Max attempts allowed</Label>
-              <Input
-                id="attempts"
-                value={maxAttempts}
-                onChange={(e) => setMaxAttempts(e.target.value)}
-                placeholder="1 or Unlimited"
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Enter a number, or type "Unlimited" for no limit.
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="pos">Marks per correct answer</Label>
-              <Input
-                id="pos"
-                type="number"
-                step="0.25"
-                min={0}
-                value={positive}
-                onChange={(e) => setPositive(Number(e.target.value))}
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="neg">Negative marks per wrong answer</Label>
-              <Input
-                id="neg"
-                type="number"
-                step="0.25"
-                min={0}
-                value={negative}
-                onChange={(e) => setNegative(Number(e.target.value))}
-                className="mt-1.5"
-              />
-            </div>
-            <div>
-              <Label htmlFor="cutoff">Qualifying / Expected Cutoff Score</Label>
-              <Input
-                id="cutoff"
-                type="number"
-                min={0}
-                value={cutoff}
-                onChange={(e) => setCutoff(e.target.value === "" ? "" : Number(e.target.value))}
-                className="mt-1.5"
-                placeholder="Optional: absolute cutoff score"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                If empty, cutoff defaults to 40% of max marks.
-              </p>
-            </div>
-            <div>
-              <Label htmlFor="cutoffMax">Upper bound for cutoff (optional)</Label>
-              <Input
-                id="cutoffMax"
-                type="number"
-                min={0}
-                value={cutoffMax}
-                onChange={(e) => setCutoffMax(e.target.value === "" ? "" : Number(e.target.value))}
-                className="mt-1.5"
-                placeholder="Optional: upper bound for cutoff range"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                If empty, upper bound is auto-calculated (+15% of lower bound).
-              </p>
-            </div>
-            <div>
-              <Label>Test Type</Label>
-              <div className="mt-1 flex items-center gap-3">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="test-type"
-                    checked={accessType === "free"}
-                    onChange={() => setAccessType("free")}
-                  />
-                  <span className="text-sm">Free (Accessible to everyone)</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="test-type"
-                    checked={accessType === "paid"}
-                    onChange={() => setAccessType("paid")}
-                  />
-                  <span className="text-sm">Paid (Standalone)</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="test-type"
-                    checked={accessType === "package_only"}
-                    onChange={() => setAccessType("package_only")}
-                  />
-                  <span className="text-sm">Package Only (Combo Exclusive)</span>
-                </label>
-              </div>
+          <div>
+            <Label htmlFor="pkgTitle" className="text-xs font-semibold text-slate-700">Package Title</Label>
+            <Input
+              id="pkgTitle"
+              value={pkgTitle}
+              onChange={(e) => setPkgTitle(e.target.value)}
+              placeholder="e.g. SSC CGL Complete Mock Series 2026"
+              className="mt-1 h-9 text-xs rounded-xl"
+            />
+          </div>
 
-              {accessType === "paid" && (
-                <div className="mt-3 grid gap-2">
-                  <Label htmlFor="price">Original Price (₹)</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    min={0}
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                  />
-                  <Label htmlFor="discountPrice">Discount / Offer Price (₹)</Label>
-                  <Input
-                    id="discountPrice"
-                    type="number"
-                    min={0}
-                    value={discountPrice}
-                    onChange={(e) =>
-                      setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))
-                    }
-                  />
-                </div>
-              )}
+          <div>
+            <Label htmlFor="pkgDescription" className="text-xs font-semibold text-slate-700">Description</Label>
+            <Textarea
+              id="pkgDescription"
+              value={pkgDescription}
+              onChange={(e) => setPkgDescription(e.target.value)}
+              placeholder="Detailed overview of tests included in this bundle..."
+              className="mt-1 min-h-[60px] text-xs rounded-xl"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="pkgPrice" className="text-xs font-semibold text-slate-700">Price (₹)</Label>
+              <Input
+                id="pkgPrice"
+                type="number"
+                min={0}
+                value={pkgPrice}
+                onChange={(e) => setPkgPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder="1299"
+                className="mt-1 h-9 text-xs rounded-xl"
+              />
+            </div>
+            <div>
+              <Label htmlFor="pkgDiscountPrice" className="text-xs font-semibold text-slate-700">Offer Price (₹)</Label>
+              <Input
+                id="pkgDiscountPrice"
+                type="number"
+                min={0}
+                value={pkgDiscountPrice}
+                onChange={(e) => setPkgDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder="899"
+                className="mt-1 h-9 text-xs rounded-xl"
+              />
             </div>
           </div>
 
-          <div className="mt-8 space-y-5">
-            <h3 className="font-display text-base font-semibold">Questions</h3>
-            <div className="mt-3 rounded-lg border border-border bg-background p-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium">Sections</h4>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setSections((s) => [
-                      ...s,
-                      {
-                        id: `section-${Date.now()}`,
-                        name: `Section ${s.length + 1}`,
-                        subject,
-                        duration_minutes: duration,
-                      },
-                    ])
-                  }
-                >
-                  <Plus className="mr-1 size-4" /> Add section
-                </Button>
-              </div>
-              <div className="mt-3 space-y-2">
-                <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={pkgIsCombo}
+              onChange={(e) => setPkgIsCombo(e.target.checked)}
+              className="size-3.5 rounded text-blue-600"
+            />
+            <span>Mark as Combo Offer (Featured Badge)</span>
+          </label>
+
+          <div>
+            <Label className="text-xs font-semibold text-slate-700">Select Mock Tests to Include</Label>
+            <div className="mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-2 space-y-1 bg-slate-50">
+              {(tests ?? []).map((t) => (
+                <label key={t.id} className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-white text-xs cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={sectionalTiming}
-                    disabled={isLive}
-                    onChange={(e) => setSectionalTiming(e.target.checked)}
+                    checked={pkgSelectedTests.includes(t.id)}
+                    onChange={(e) =>
+                      setPkgSelectedTests((prev) =>
+                        e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id),
+                      )
+                    }
+                    className="size-3.5 rounded text-blue-600"
                   />
-                  <span>Enable sectional timing</span>
+                  <span className="truncate text-slate-800 font-medium">{t.title}</span>
                 </label>
-                {sections.map((s, idx) => (
-                  <div key={s.id} className="grid gap-2 sm:grid-cols-3 items-center">
-                    <Input
-                      value={s.name}
-                      onChange={(e) =>
-                        setSections((prev) =>
-                          prev.map((ps, i) => (i === idx ? { ...ps, name: e.target.value } : ps)),
-                        )
-                      }
-                    />
-                    <Input
-                      value={s.subject ?? subject}
-                      onChange={(e) =>
-                        setSections((prev) =>
-                          prev.map((ps, i) =>
-                            i === idx ? { ...ps, subject: e.target.value } : ps,
-                          ),
-                        )
-                      }
-                    />
-                    <Input
-                      type="number"
-                      value={s.duration_minutes}
-                      onChange={(e) =>
-                        setSections((prev) =>
-                          prev.map((ps, i) =>
-                            i === idx ? { ...ps, duration_minutes: Number(e.target.value) } : ps,
-                          ),
-                        )
-                      }
-                    />
-                    <div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSections((prev) => prev.filter((_, i) => i !== idx))}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {questions.map((q, i) => (
-              <div key={i} className="rounded-lg border border-border bg-background p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Question {i + 1}</span>
-                  {questions.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  )}
-                </div>
-                <Textarea
-                  value={q.body}
-                  onChange={(e) => patch(i, { body: e.target.value })}
-                  placeholder="Enter the question"
-                  className="mt-2"
-                />
-                <div className="mt-2">
-                  <Label>Assign section</Label>
-                  <select
-                    className="mt-1 w-full"
-                    value={q.sectionId ?? sections[0]?.id}
-                    onChange={(e) => patch(i, { sectionId: e.target.value })}
-                  >
-                    {sections.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {q.options.map((opt, oi) => (
-                    <label key={oi} className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name={`correct-${i}`}
-                        checked={q.correct_index === oi}
-                        onChange={() => patch(i, { correct_index: oi })}
-                        className="size-4 accent-[var(--primary)]"
-                        aria-label={`Mark option ${oi + 1} correct`}
-                      />
-                      <Input
-                        value={opt}
-                        onChange={(e) =>
-                          patch(i, {
-                            options: q.options.map((o, idx) => (idx === oi ? e.target.value : o)),
-                          })
-                        }
-                        placeholder={`Option ${oi + 1}`}
-                      />
-                    </label>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Select the radio next to the correct option.
-                </p>
-                <div className="mt-3">
-                  <Label htmlFor={`explanation-${i}`}>Answer explanation / solution</Label>
-                  <Textarea
-                    id={`explanation-${i}`}
-                    value={q.explanation}
-                    onChange={(e) => patch(i, { explanation: e.target.value })}
-                    placeholder="Explain how the correct answer is derived…"
-                    className="mt-1.5 min-h-24"
-                  />
-                </div>
-              </div>
-            ))}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setQuestions((prev) => [...prev, { ...emptyDraft(), sectionId: sections[0]?.id }])
-                }
-              >
-                <Plus className="mr-1 size-4" /> Add question
-              </Button>
-              <Button type="button" variant="outline" onClick={downloadBulkTemplate}>
-                Download Sample CSV Template
-              </Button>
-              <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-muted">
-                Bulk Upload CSV / Excel
-                <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  className="sr-only"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void importBulkQuestions(file);
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
+              ))}
             </div>
           </div>
 
           <Button
-            className="mt-8 w-full"
-            size="lg"
-            onClick={() => saveTest.mutate()}
-            disabled={saveTest.isPending}
+            size="sm"
+            onClick={() => createPackage.mutate()}
+            disabled={createPackage.isPending}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 text-xs font-semibold"
           >
-            {saveTest.isPending ? "Saving…" : editingId ? "Save changes" : "Create test"}
+            {createPackage.isPending ? "Creating..." : "Publish Package"}
           </Button>
-        </section>
+        </div>
+      </div>
 
-        <section>
-          <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Admin</h2>
-            <div className="flex gap-2">
-              <button
-                className={`px-3 py-1 rounded ${activeTab === "tests" ? "bg-primary text-white" : "bg-transparent"}`}
-                onClick={() => setActiveTab("tests")}
-              >
-                Manage Tests & Questions
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${activeTab === "packages" ? "bg-primary text-white" : "bg-transparent"}`}
-                onClick={() => setActiveTab("packages")}
-              >
-                Manage Packages & Combos
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${activeTab === "notes" ? "bg-primary text-white" : "bg-transparent"}`}
-                onClick={() => setActiveTab("notes")}
-              >
-                Study Materials / Notes
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${activeTab === "ads" ? "bg-primary text-white" : "bg-transparent"}`}
-                onClick={() => setActiveTab("ads")}
-              >
-                Promotions
-              </button>
-              <button
-                className={`px-3 py-1 rounded ${activeTab === "users" ? "bg-primary text-white" : "bg-transparent"}`}
-                onClick={() => setActiveTab("users")}
-              >
-                User Management
-              </button>
+      {/* Existing Packages List */}
+      <div className="lg:col-span-7 space-y-3">
+        <h4 className="font-bold text-slate-900 text-sm">Published Series & Combos</h4>
+        {packagesData?.packages.length ? (
+          packagesData.packages.map((p: any) => {
+            const linkedCount = packagesData.links.filter((l: any) => l.package_id === p.id).length;
+            return (
+              <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-900">{p.title}</span>
+                    <Badge variant="outline">{p.category}</Badge>
+                    {p.is_combo && <Badge className="bg-cyan-50 text-cyan-700 border-cyan-200">Combo</Badge>}
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">{p.description}</p>
+                  <div className="mt-2 text-xs">
+                    <span className="font-bold text-slate-900">₹{p.discount_price ?? p.price}</span>
+                    {p.price && p.discount_price && (
+                      <span className="text-slate-400 line-through ml-2">₹{p.price}</span>
+                    )}
+                    <span className="ml-3 text-slate-500">• {linkedCount} Tests included</span>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => deletePackage.mutate(p.id)}
+                  className="h-8 rounded-lg text-xs"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+            No package series created yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const emptyAd = (): Omit<Advertisement, "id" | "created_at"> => ({
+  title: "",
+  subtitle: "",
+  badge_text: "Featured",
+  image_url: "",
+  cta_text: "Explore Now",
+  cta_link: "/",
+  placement: "hero_carousel",
+  is_external: false,
+  is_active: true,
+  banner_type: "standard",
+  gradient_theme: "blue_glow",
+  display_order: 0,
+});
+
+function AdvertisementManager() {
+  const qc = useQueryClient();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState(emptyAd());
+  const { data: ads = [], isLoading } = useQuery({
+    queryKey: ["advertisements", "admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("advertisements")
+        .select("*")
+        .order("display_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Advertisement[];
+    },
+  });
+
+  const saveAd = useMutation({
+    mutationFn: async () => {
+      if (form.banner_type === "direct_image") {
+        if (!form.image_url.trim() || !form.cta_link.trim())
+          throw new Error("Banner image and destination link are required");
+      } else if (!form.title.trim() || !form.cta_link.trim()) {
+        throw new Error("Title and CTA link are required");
+      }
+      const payload = {
+        ...form,
+        title: form.title.trim(),
+        subtitle: form.subtitle?.trim() || null,
+        cta_link: form.cta_link.trim(),
+      };
+      const result = editingId
+        ? await supabase.from("advertisements").update(payload).eq("id", editingId)
+        : await supabase.from("advertisements").insert(payload);
+      if (result.error) throw result.error;
+    },
+    onSuccess: () => {
+      toast.success(editingId ? "Promotion updated" : "Promotion published");
+      setEditingId(null);
+      setForm(emptyAd());
+      void qc.invalidateQueries({ queryKey: ["advertisements"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const toggleAd = useMutation({
+    mutationFn: async (ad: Advertisement) => {
+      const { error } = await supabase
+        .from("advertisements")
+        .update({ is_active: !ad.is_active })
+        .eq("id", ad.id);
+      if (error) throw error;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["advertisements"] }),
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteAd = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("advertisements").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Promotion deleted");
+      void qc.invalidateQueries({ queryKey: ["advertisements"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const update = (key: keyof typeof form, value: string | boolean | number) =>
+    setForm((current) => ({ ...current, [key]: value }));
+  const previewAd = { ...form, id: "preview", created_at: "" } as Advertisement;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 className="font-semibold text-slate-900">
+              {editingId ? "Edit Promotion Banner" : "New Campaign Banner"}
+            </h3>
+            <Megaphone className="size-4 text-blue-600" />
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 text-xs">
+            <div className="sm:col-span-2 space-y-1">
+              <Label>Banner Title</Label>
+              <Input
+                value={form.title}
+                onChange={(e) => update("title", e.target.value)}
+                placeholder="e.g. Special SSC Tier 1 Mock Series"
+                className="h-9"
+              />
+            </div>
+            <div className="sm:col-span-2 space-y-1">
+              <Label>Subtitle / Secondary Offer Text</Label>
+              <Textarea
+                value={form.subtitle ?? ""}
+                onChange={(e) => update("subtitle", e.target.value)}
+                placeholder="Sharpen your accuracy with instant percentiles..."
+                className="min-h-[50px]"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Target Link / Tab</Label>
+              <Input
+                value={form.cta_link}
+                onChange={(e) => update("cta_link", e.target.value)}
+                placeholder="/?tab=packages"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Button Text</Label>
+              <Input
+                value={form.cta_text}
+                onChange={(e) => update("cta_text", e.target.value)}
+                placeholder="Unlock Now"
+                className="h-9"
+              />
             </div>
           </div>
 
-          {activeTab === "tests" && (
-            <div className="mt-3">
-              <h3 className="sr-only">Existing tests</h3>
-              <Accordion type="single" collapsible className="mt-3">
-                {tests?.map((t) => (
-                  <AccordionItem key={t.id} value={t.id}>
-                    <AccordionTrigger className="text-left">
-                      <span className="pr-2">{t.title}</span>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Badge>{t.category}</Badge>
-                        <Badge variant="secondary">{t.subject}</Badge>
-                        <Badge variant="secondary">{t.duration_minutes} min</Badge>
-                        <Badge variant="secondary">
-                          +{t.positive_marks} / −{t.negative_marks}
-                        </Badge>
-                        <Badge variant="secondary">
-                          {t.max_attempts === null
-                            ? "Unlimited attempts"
-                            : `${t.max_attempts} attempt(s)`}
-                        </Badge>
-                      </div>
-                      <QuestionList testId={t.id} />
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" onClick={() => void startEdit(t.id)}>
-                          <Pencil className="mr-1 size-4" /> Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteTest.mutate(t.id)}
-                        >
-                          <Trash2 className="mr-1 size-4" /> Delete test
-                        </Button>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-              {tests && tests.length === 0 && (
-                <p className="mt-3 text-sm text-muted-foreground">No tests created yet.</p>
-              )}
-            </div>
-          )}
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => saveAd.mutate()} disabled={saveAd.isPending} size="sm" className="bg-blue-600">
+              {saveAd.isPending ? "Saving..." : editingId ? "Update Campaign" : "Publish Campaign"}
+            </Button>
+            {editingId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(emptyAd());
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        </section>
 
-          {activeTab === "packages" && (
-            <div className="mt-3 space-y-4">
-              <h3 className="font-display text-sm font-semibold">Create Package / Combo</h3>
-              <div className="rounded-lg border border-border bg-background p-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="pkgTitle">Package Title</Label>
-                  <Input
-                    id="pkgTitle"
-                    value={pkgTitle}
-                    onChange={(e) => setPkgTitle(e.target.value)}
-                  />
-                  <Label htmlFor="pkgDescription">Description</Label>
-                  <Textarea
-                    id="pkgDescription"
-                    value={pkgDescription}
-                    onChange={(e) => setPkgDescription(e.target.value)}
-                  />
-                  <Label htmlFor="pkgCategory">Category</Label>
-                  <Input
-                    id="pkgCategory"
-                    list="pkg-category-options"
-                    value={pkgCategory}
-                    onChange={(e) => setPkgCategory(e.target.value)}
-                  />
-                  <datalist id="pkg-category-options">
-                    {Array.from(
-                      new Set([...(tests ?? []).map((t) => t.category), ...CATEGORY_SUGGESTIONS]),
-                    ).map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor="pkgPrice">Original Price (₹)</Label>
-                      <Input
-                        id="pkgPrice"
-                        type="number"
-                        min={0}
-                        value={pkgPrice}
-                        onChange={(e) =>
-                          setPkgPrice(e.target.value === "" ? "" : Number(e.target.value))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="pkgDiscountPrice">Offer / Discount Price (₹)</Label>
-                      <Input
-                        id="pkgDiscountPrice"
-                        type="number"
-                        min={0}
-                        value={pkgDiscountPrice}
-                        onChange={(e) =>
-                          setPkgDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={pkgIsCombo}
-                      onChange={(e) => setPkgIsCombo(e.target.checked)}
-                    />
-                    <span>Is Combo Offer?</span>
-                  </label>
-
-                  <div>
-                    <Label>Select Included Tests</Label>
-                    <div className="mt-2 max-h-40 overflow-auto border p-2 rounded">
-                      {(tests ?? []).map((t) => (
-                        <label key={t.id} className="flex items-center gap-2 mb-1">
-                          <input
-                            type="checkbox"
-                            checked={pkgSelectedTests.includes(t.id)}
-                            onChange={(e) =>
-                              setPkgSelectedTests((prev) =>
-                                e.target.checked
-                                  ? [...prev, t.id]
-                                  : prev.filter((id) => id !== t.id),
-                              )
-                            }
-                          />
-                          <span className="text-sm">{t.title}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => createPackage.mutate()}
-                      disabled={createPackage.isPending}
-                    >
-                      Create package
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-display text-sm font-semibold">Existing Packages</h4>
-                <div className="mt-2 space-y-2">
-                  {packagesData?.packages.length ? (
-                    packagesData.packages.map((p: any) => {
-                      const linkedCount = packagesData.links.filter(
-                        (l: any) => l.package_id === p.id,
-                      ).length;
-                      return (
-                        <div
-                          key={p.id}
-                          className="rounded-lg border border-border bg-card p-3 flex items-center justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <div className="font-medium">{p.title}</div>
-                              <Badge variant="secondary">{p.category}</Badge>
-                              {p.is_combo && <Badge>Combo</Badge>}
-                            </div>
-                            <div className="text-sm text-muted-foreground">{p.description}</div>
-                            <div className="mt-1">
-                              <span className="text-sm font-semibold">
-                                ₹{p.discount_price ?? p.price}
-                              </span>
-                              {p.price && p.discount_price && (
-                                <span className="text-xs text-muted-foreground line-through ml-2">
-                                  ₹{p.price}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-sm text-muted-foreground">{linkedCount} tests</div>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => deletePackage.mutate(p.id)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No packages yet.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "notes" && <StudyMaterialsManager />}
-          {activeTab === "ads" && <AdvertisementManager />}
-          {activeTab === "users" && <UserManagement />}
+        {/* Live Preview */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-slate-800 text-sm">Live Banner Preview</h3>
+            <Badge variant="secondary">Dynamic</Badge>
+          </div>
+          <HeroCarousel ads={[previewAd]} />
         </section>
       </div>
+
+      {/* Published Ads List */}
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="font-semibold text-slate-900 text-sm mb-4">Active Campaign Records</h3>
+        <div className="space-y-2">
+          {ads.map((ad) => (
+            <div key={ad.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs bg-slate-50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800">{ad.title}</span>
+                  <Badge variant={ad.is_active ? "default" : "outline"}>{ad.is_active ? "Active" : "Paused"}</Badge>
+                </div>
+                <span className="text-slate-500 mt-1 block">{ad.cta_link}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => toggleAd.mutate(ad)} className="h-7 text-xs">
+                  {ad.is_active ? "Pause" : "Activate"}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => deleteAd.mutate(ad.id)} className="h-7 text-xs">
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1620,6 +1576,7 @@ function UserManagement() {
   const [offerCode, setOfferCode] = useState("");
   const [discount, setDiscount] = useState("");
   const [offerExpiry, setOfferExpiry] = useState("");
+
   const fetchUsers = useCallback(async () => {
     setIsLoadingUsers(true);
     try {
@@ -1677,9 +1634,11 @@ function UserManagement() {
   useEffect(() => {
     void fetchUsers();
   }, [fetchUsers]);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [filterType, searchTerm]);
+
   const handleSavePass = async (userId: string = targetUserId ?? selected[0] ?? "") => {
     if (!userId) return;
     const expiryDate =
@@ -1713,6 +1672,7 @@ function UserManagement() {
       });
     toast.success(passEnabled ? "Free pass granted" : "Free pass revoked");
   };
+
   const moderateUser = async (user: ManagedUser) => {
     const { error } = await supabase
       .from("profiles")
@@ -1727,6 +1687,7 @@ function UserManagement() {
     );
     toast.success(user.is_banned ? "User unbanned" : "User banned");
   };
+
   const deleteUser = async (user: ManagedUser) => {
     if (!window.confirm(`Delete the profile for ${user.full_name || user.email || "this user"}?`))
       return;
@@ -1739,10 +1700,12 @@ function UserManagement() {
     setSelected((current) => current.filter((id) => id !== user.id));
     toast.success("Profile deleted");
   };
+
   const toggle = (id: string) =>
     setSelected((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
+
   const runAction = async () => {
     if (!selected.length) return;
     if (action === "notification") {
@@ -1779,69 +1742,94 @@ function UserManagement() {
         })),
       );
     }
-    toast.success("Action applied");
+    toast.success("Action applied successfully");
     setAction(null);
     setTitle("");
     setMessage("");
     setSelected([]);
     await fetchUsers();
   };
+
   return (
-    <div className="mt-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <Users className="size-5 text-cyan-600" />
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+      {/* Header & Search */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="font-display text-lg font-semibold">User Management</h3>
-          <p className="text-sm text-muted-foreground">
-            Manage access and targeted learner communication.
-          </p>
+          <h3 className="text-lg font-bold text-slate-900">Student & Learner Accounts</h3>
+          <p className="text-xs text-slate-500">Manage user access, grant free passes, send offers, or moderate accounts.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 sm:w-72">
+            <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+            <Input
+              className="pl-9 h-9 text-xs rounded-xl"
+              placeholder="Search by name, email, or phone..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+          </div>
+          <select
+            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700"
+            value={filterType}
+            onChange={(event) => setFilterType(event.target.value)}
+          >
+            <option value="all">All Registered Students</option>
+            <option value="pass">Active Free Pass Holders</option>
+          </select>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1 min-w-56">
-          <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Search name, email, or phone"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
-        <select
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-          value={filterType}
-          onChange={(event) => setFilterType(event.target.value)}
-        >
-          <option value="all">All Users</option>
-          <option value="pass">Has Pass</option>
-          <option value="paid">Paid Users</option>
-          <option value="free">Free Users</option>
-        </select>
-      </div>
+
+      {/* Selected Action Floating Strip */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap gap-2 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
-          <span className="mr-auto text-sm font-medium">{selected.length} selected</span>
-          <Button size="sm" onClick={() => setAction("notification")}>
-            Send Notification
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 p-3 shadow-xs">
+          <span className="mr-auto text-xs font-bold text-blue-900 flex items-center gap-1.5">
+            <Check className="size-4 text-blue-600" /> {selected.length} student(s) selected
+          </span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setTargetUserId(null);
+              setAction("notification");
+            }}
+            className="h-8 bg-blue-600 hover:bg-blue-700 text-xs rounded-lg"
+          >
+            <Bell className="mr-1.5 size-3.5" /> Send Notification
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setAction("pass")}>
-            Grant / Revoke Pass
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setTargetUserId(null);
+              setAction("pass");
+            }}
+            className="h-8 bg-white text-xs rounded-lg"
+          >
+            <KeyRound className="mr-1.5 size-3.5" /> Grant / Revoke Pass
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setAction("offer")}>
-            Send Offer
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setTargetUserId(null);
+              setAction("offer");
+            }}
+            className="h-8 bg-white text-xs rounded-lg"
+          >
+            <Gift className="mr-1.5 size-3.5" /> Assign Special Offer
           </Button>
         </div>
       )}
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-muted/50">
+
+      {/* Full Users Table */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
             <tr>
-              <th className="p-3">
+              <th className="p-3.5 w-10">
                 <input
                   type="checkbox"
-                  checked={
-                    users.length > 0 && users.every((user) => selected.includes(user.id))
-                  }
+                  className="size-3.5 rounded text-blue-600"
+                  checked={users.length > 0 && users.every((user) => selected.includes(user.id))}
                   onChange={() =>
                     setSelected(
                       users.every((user) => selected.includes(user.id))
@@ -1851,110 +1839,123 @@ function UserManagement() {
                   }
                 />
               </th>
-              <th className="p-3">User</th>
-              <th className="p-3">Email</th>
-              <th className="p-3">Phone</th>
-              <th className="p-3">Tests Attempted</th>
-              <th className="p-3">Free Pass</th>
-              <th className="p-3">Joined</th>
-              <th className="p-3">Actions</th>
+              <th className="p-3.5">Student</th>
+              <th className="p-3.5">Email</th>
+              <th className="p-3.5">Phone</th>
+              <th className="p-3.5 text-center">Tests Attempted</th>
+              <th className="p-3.5">Pass Status</th>
+              <th className="p-3.5">Joined Date</th>
+              <th className="p-3.5 text-right">Quick Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {isLoadingUsers ? (
               <tr>
-                <td className="p-4" colSpan={8}>
+                <td className="p-8 text-center text-slate-400" colSpan={8}>
                   <span className="inline-flex items-center gap-2">
-                    <span className="size-4 animate-spin rounded-full border-2 border-cyan-600 border-t-transparent" />{" "}
-                    Loading users...
+                    <span className="size-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                    Loading registered student records...
                   </span>
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-6 text-center text-slate-500">
-                  No users found.
-                </td>
-              </tr>
-            ) : users.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="py-6 text-center text-slate-500">
-                  No users found.
+                <td colSpan={8} className="py-12 text-center text-slate-500 font-medium">
+                  No students found matching your filters.
                 </td>
               </tr>
             ) : (
-              users.map((user) => (
-                <tr key={user.id} className="border-t border-border">
-                  <td className="p-3">
+              users.map((u) => (
+                <tr key={u.id} className={`hover:bg-slate-50/70 transition-colors ${selected.includes(u.id) ? "bg-blue-50/30" : ""}`}>
+                  <td className="p-3.5">
                     <input
                       type="checkbox"
-                      checked={selected.includes(user.id)}
-                      onChange={() => toggle(user.id)}
+                      className="size-3.5 rounded text-blue-600"
+                      checked={selected.includes(u.id)}
+                      onChange={() => toggle(u.id)}
                     />
                   </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
+                  <td className="p-3.5">
+                    <div className="flex items-center gap-2.5">
                       <img
-                        src={user.avatar_url || "/logo.png"}
+                        src={u.avatar_url || "/logo.png"}
                         alt=""
-                        className="size-8 rounded-full object-cover"
+                        className="size-8 rounded-full object-cover border border-slate-200"
                       />
-                      <span className="font-medium">{user.full_name || "Unnamed user"}</span>
-                      {user.is_banned && <Badge variant="destructive">Banned</Badge>}
+                      <div>
+                        <div className="font-semibold text-slate-800">{u.full_name || "Rankdon Learner"}</div>
+                        {u.is_banned && <Badge variant="destructive" className="text-[10px] h-4">BANNED</Badge>}
+                      </div>
                     </div>
                   </td>
-                  <td className="p-3 text-muted-foreground">{user.email}</td>
-                  <td className="p-3 text-muted-foreground">
-                    {user.phone ||
-                      user.user_metadata?.phone ||
-                      user.raw_user_meta_data?.phone ||
-                      "—"}
+                  <td className="p-3.5 text-slate-600 font-mono text-[11px]">{u.email}</td>
+                  <td className="p-3.5 text-slate-500">
+                    {u.phone || u.user_metadata?.phone || u.raw_user_meta_data?.phone || "—"}
                   </td>
-                  <td className="p-3">{user.attempts ?? 0}</td>
-                  <td className="p-3">{user.has_free_pass ? "Active" : "No"}</td>
-                  <td className="p-3">
-                    {new Date(user.created_at || user.joined_at).toLocaleDateString()}
+                  <td className="p-3.5 text-center font-bold text-slate-700">{u.attempts ?? 0}</td>
+                  <td className="p-3.5">
+                    {u.has_free_pass ? (
+                      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
+                        FREE PASS ACTIVE
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-400">Standard</span>
+                    )}
                   </td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-1">
+                  <td className="p-3.5 text-slate-500">{new Date(u.created_at || u.joined_at).toLocaleDateString()}</td>
+                  <td className="p-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-7 text-[11px] px-2"
                         onClick={() => {
-                          setSelected([user.id]);
-                          setTargetUserId(user.id);
+                          setSelected([u.id]);
+                          setTargetUserId(u.id);
                           setAction("notification");
                         }}
                       >
-                        Send Notification
+                        Notify
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-7 text-[11px] px-2"
                         onClick={() => {
-                          setSelected([user.id]);
-                          setTargetUserId(user.id);
+                          setSelected([u.id]);
+                          setTargetUserId(u.id);
                           setAction("pass");
                         }}
                       >
-                        Manage Pass
+                        Pass
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
+                        className="h-7 text-[11px] px-2"
                         onClick={() => {
-                          setSelected([user.id]);
-                          setTargetUserId(user.id);
+                          setSelected([u.id]);
+                          setTargetUserId(u.id);
                           setAction("offer");
                         }}
                       >
-                        Give Offer
+                        Offer
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => void moderateUser(user)}>
-                        {user.is_banned ? "Unban User" : "Ban User"}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px] px-2"
+                        onClick={() => void moderateUser(u)}
+                      >
+                        {u.is_banned ? "Unban" : "Ban"}
                       </Button>
-                      <Button size="sm" variant="destructive" onClick={() => void deleteUser(user)}>
-                        Delete Profile
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 w-7 p-0"
+                        onClick={() => void deleteUser(u)}
+                      >
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   </td>
@@ -1964,15 +1965,18 @@ function UserManagement() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+
+      {/* Pagination Controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 pt-2">
         <span>
           Showing {totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
-          {Math.min(currentPage * pageSize, totalCount)} of {totalCount} users
+          {Math.min(currentPage * pageSize, totalCount)} of {totalCount} registered students
         </span>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            className="rounded-md"
+            size="sm"
+            className="rounded-lg h-8 text-xs"
             disabled={currentPage === 1}
             onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
           >
@@ -1980,7 +1984,8 @@ function UserManagement() {
           </Button>
           <Button
             variant="outline"
-            className="rounded-md"
+            size="sm"
+            className="rounded-lg h-8 text-xs"
             disabled={currentPage * pageSize >= totalCount}
             onClick={() => setCurrentPage((page) => page + 1)}
           >
@@ -1988,101 +1993,134 @@ function UserManagement() {
           </Button>
         </div>
       </div>
+
+      {/* Full Modal Layer: Send Notification / Manage Pass / Assign Offer */}
       {action && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-card p-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-display text-base font-bold text-slate-900">
                 {action === "notification"
-                  ? "Send Notification"
+                  ? "Send Learner Notification"
                   : action === "pass"
-                    ? "Grant / Revoke Free Pass"
-                    : "Send Custom Offer"}
+                    ? "Configure Student Free Pass"
+                    : "Assign Discount Coupon / Offer"}
               </h3>
-              <Button variant="ghost" onClick={() => setAction(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setAction(null)} className="h-7 w-7 p-0">
                 <X className="size-4" />
               </Button>
             </div>
+
             {action === "notification" && (
-              <>
-                <Label className="mt-4 block">Notification Title</Label>
-                <Input
-                  className="mt-1"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                />
-                <Label className="mt-4 block">Message</Label>
-                <Textarea
-                  className="mt-1"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                />
-                <Label className="mt-4 block">Action URL (optional)</Label>
-                <Input
-                  className="mt-1"
-                  value={actionUrl}
-                  onChange={(event) => setActionUrl(event.target.value)}
-                />
-              </>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <Label>Notification Title</Label>
+                  <Input
+                    className="mt-1 h-9 rounded-xl"
+                    placeholder="e.g. New All-India Mock Test is Live!"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Message Content</Label>
+                  <Textarea
+                    className="mt-1 min-h-[80px] rounded-xl text-xs"
+                    placeholder="Describe the update or instructions..."
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Destination Action URL (Optional)</Label>
+                  <Input
+                    className="mt-1 h-9 rounded-xl font-mono text-xs"
+                    placeholder="/?tab=packages"
+                    value={actionUrl}
+                    onChange={(event) => setActionUrl(event.target.value)}
+                  />
+                </div>
+              </div>
             )}
+
             {action === "pass" && (
-              <>
-                <label className="mt-4 flex items-center gap-2 text-sm">
+              <div className="space-y-3 text-xs">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-800">
                   <input
                     type="checkbox"
                     checked={passEnabled}
                     onChange={(event) => setPassEnabled(event.target.checked)}
-                  />{" "}
-                  Unlimited Free Pass
+                    className="size-4 rounded text-blue-600"
+                  />
+                  <span>Enable Free Pass (Full Access to All Tests)</span>
                 </label>
-                <Label className="mt-4 block">Pass duration</Label>
-                <select
-                  className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3"
-                  value={passDuration}
-                  onChange={(event) => setPassDuration(event.target.value)}
-                >
-                  <option value="7">7 Days</option>
-                  <option value="30">30 Days</option>
-                  <option value="lifetime">Lifetime</option>
-                </select>
-              </>
+                <div>
+                  <Label>Pass Validity Duration</Label>
+                  <select
+                    className="mt-1 h-9 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs"
+                    value={passDuration}
+                    onChange={(event) => setPassDuration(event.target.value)}
+                  >
+                    <option value="7">7 Days</option>
+                    <option value="30">30 Days</option>
+                    <option value="90">90 Days</option>
+                    <option value="lifetime">Lifetime</option>
+                  </select>
+                </div>
+              </div>
             )}
+
             {action === "offer" && (
-              <>
-                <Label className="mt-4 block">Offer Title</Label>
-                <Input
-                  className="mt-1"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  placeholder="50% off on SSC Combo"
-                />
-                <Label className="mt-4 block">Coupon code</Label>
-                <Input
-                  className="mt-1"
-                  value={offerCode}
-                  onChange={(event) => setOfferCode(event.target.value)}
-                />
-                <Label className="mt-4 block">Direct Discount %</Label>
-                <Input
-                  className="mt-1"
-                  type="number"
-                  value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
-                />
-                <Label className="mt-4 block">Expiry Date</Label>
-                <Input
-                  className="mt-1"
-                  type="datetime-local"
-                  value={offerExpiry}
-                  onChange={(event) => setOfferExpiry(event.target.value)}
-                />
-              </>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <Label>Offer Headline / Title</Label>
+                  <Input
+                    className="mt-1 h-9 rounded-xl"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="e.g. 50% Off on SSC Combo Series"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Coupon Code</Label>
+                    <Input
+                      className="mt-1 h-9 rounded-xl font-mono"
+                      value={offerCode}
+                      onChange={(event) => setOfferCode(event.target.value)}
+                      placeholder="RANK50"
+                    />
+                  </div>
+                  <div>
+                    <Label>Discount %</Label>
+                    <Input
+                      className="mt-1 h-9 rounded-xl"
+                      type="number"
+                      value={discount}
+                      onChange={(event) => setDiscount(event.target.value)}
+                      placeholder="50"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>Expiry Date & Time</Label>
+                  <Input
+                    className="mt-1 h-9 rounded-xl"
+                    type="datetime-local"
+                    value={offerExpiry}
+                    onChange={(event) => setOfferExpiry(event.target.value)}
+                  />
+                </div>
+              </div>
             )}
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAction(null)}>
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <Button variant="outline" size="sm" onClick={() => setAction(null)} className="rounded-xl h-9 text-xs">
                 Cancel
               </Button>
-              <Button onClick={() => void runAction()}>Apply</Button>
+              <Button size="sm" onClick={() => void runAction()} className="bg-blue-600 hover:bg-blue-700 rounded-xl h-9 text-xs">
+                Apply Action
+              </Button>
             </div>
           </div>
         </div>
@@ -2114,6 +2152,7 @@ function StudyMaterialsManager() {
       return (data ?? []) as StudyNote[];
     },
   });
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -2129,6 +2168,7 @@ function StudyMaterialsManager() {
     setFileUrl("");
     setIsFree(true);
   };
+
   const save = async () => {
     if (!title.trim() || !fileUrl.trim()) {
       toast.error("Title and resource URL are required");
@@ -2152,106 +2192,39 @@ function StudyMaterialsManager() {
     reset();
     void qc.invalidateQueries({ queryKey: ["study-notes"] });
   };
-  const edit = (note: StudyNote) => {
-    setEditingId(note.id);
-    setTitle(note.title);
-    setDescription(note.description);
-    setCategory(note.category);
-    setFileUrl(note.file_url);
-    setIsFree(note.is_free);
-  };
-  const remove = async (id: string) => {
-    const { error } = await supabase.from("study_notes").delete().eq("id", id);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Note deleted");
-      void qc.invalidateQueries({ queryKey: ["study-notes"] });
-    }
-  };
 
   return (
-    <div className="mt-3 space-y-4">
-      <h3 className="font-display text-sm font-semibold">
-        {editingId ? "Update study material" : "Add study material"}
-      </h3>
-      <div className="rounded-lg border border-border bg-background p-4 space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="note-title">Note Title</Label>
-            <Input id="note-title" value={title} onChange={(e) => setTitle(e.target.value)} />
-          </div>
-          <div>
-            <Label htmlFor="note-category">Category</Label>
-            <Input
-              id="note-category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="SSC CGL, Maths, Reasoning"
-            />
-          </div>
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+      <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
+        <h3 className="font-semibold text-slate-900 text-sm">Add Study PDF / Material</h3>
+        <div>
+          <Label className="text-xs">Title</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
         </div>
         <div>
-          <Label htmlFor="note-description">Description</Label>
-          <Textarea
-            id="note-description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+          <Label className="text-xs">Category</Label>
+          <Input value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
         </div>
         <div>
-          <Label htmlFor="note-url">PDF / resource URL</Label>
-          <Input
-            id="note-url"
-            type="url"
-            value={fileUrl}
-            onChange={(e) => setFileUrl(e.target.value)}
-            placeholder="https://.../study-notes.pdf"
-          />
+          <Label className="text-xs">Resource Link (PDF / Cloud URL)</Label>
+          <Input value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
         </div>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={isFree} onChange={(e) => setIsFree(e.target.checked)} />{" "}
-          Free for students
-        </label>
-        <div className="flex gap-2">
-          <Button onClick={() => void save()}>{editingId ? "Update Note" : "Publish Note"}</Button>
-          {editingId && (
-            <Button variant="outline" onClick={reset}>
-              Cancel
-            </Button>
-          )}
-        </div>
+        <Button onClick={() => void save()} size="sm" className="w-full bg-blue-600 rounded-xl mt-2">
+          {editingId ? "Update Material" : "Publish Material"}
+        </Button>
       </div>
-      <div className="space-y-2">
-        <h3 className="font-display text-sm font-semibold">Published materials</h3>
-        {isLoading && <p className="text-sm text-muted-foreground">Loading notes...</p>}
-        {notes.map((note) => (
-          <div
-            key={note.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3"
-          >
+
+      <div className="lg:col-span-7 space-y-3">
+        <h4 className="font-bold text-slate-900 text-sm">Published Documents</h4>
+        {notes.map((n) => (
+          <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-4 text-xs flex justify-between items-center shadow-xs">
             <div>
-              <div className="flex flex-wrap gap-2">
-                <span className="font-medium">{note.title}</span>
-                <Badge variant="secondary">{note.category}</Badge>
-                <Badge variant={note.is_free ? "secondary" : "destructive"}>
-                  {note.is_free ? "FREE" : "PAID"}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">{note.description}</p>
+              <span className="font-bold text-slate-800">{n.title}</span>
+              <span className="text-slate-400 block mt-0.5">{n.category}</span>
             </div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => edit(note)}>
-                Edit
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => void remove(note.id)}>
-                Delete
-              </Button>
-            </div>
+            <Badge variant={n.is_free ? "secondary" : "destructive"}>{n.is_free ? "FREE" : "PAID"}</Badge>
           </div>
         ))}
-        {!isLoading && notes.length === 0 && (
-          <p className="text-sm text-muted-foreground">No study materials published yet.</p>
-        )}
       </div>
     </div>
   );
@@ -2263,9 +2236,11 @@ function QuestionList({ testId }: { testId: string }) {
     queryFn: () => fetchQuestions(testId),
   });
   return (
-    <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+    <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-xs text-slate-600">
       {data?.map((q) => (
-        <li key={q.id}>{q.body}</li>
+        <li key={q.id} className="leading-relaxed">
+          {q.body}
+        </li>
       ))}
     </ol>
   );
