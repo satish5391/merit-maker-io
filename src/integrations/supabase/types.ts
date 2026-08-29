@@ -225,6 +225,7 @@ export type Database = {
           user_id: string;
           item_type: string;
           item_id: string;
+          payment_id: string | null;
           amount_paid: number | null;
           payment_status: string;
           created_at: string;
@@ -234,6 +235,7 @@ export type Database = {
           user_id: string;
           item_type: string;
           item_id: string;
+          payment_id?: string | null;
           amount_paid?: number | null;
           payment_status?: string;
           created_at?: string;
@@ -243,6 +245,7 @@ export type Database = {
           user_id?: string;
           item_type?: string;
           item_id?: string;
+          payment_id?: string | null;
           amount_paid?: number | null;
           payment_status?: string;
           created_at?: string;

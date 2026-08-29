@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isSupabaseUserId } from "@/lib/utils";
 
 export const Route = createFileRoute("/live-tests")({
   component: LiveTestsPage,
@@ -94,18 +95,19 @@ function LiveTestCard({
 
 function LiveTestsPage() {
   const { user } = useAuth();
+  const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ["live-tests"],
     queryFn: fetchTests,
   });
   const { data: submittedAttempts = [] } = useQuery({
-    queryKey: ["live-test-submissions", user?.id],
-    enabled: Boolean(user?.id),
+    queryKey: ["live-test-submissions", supabaseUserId],
+    enabled: Boolean(supabaseUserId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attempts")
         .select("id, test_id, created_at, status")
-        .eq("user_id", user!.id)
+        .eq("user_id", supabaseUserId!)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       if (error) throw error;

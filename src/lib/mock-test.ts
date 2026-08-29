@@ -17,6 +17,9 @@ export type Test = {
   start_time?: string | null;
   end_time?: string | null;
   result_declaration_time?: string | null;
+  is_free?: boolean;
+  price?: number | null;
+  discount_price?: number | null;
 };
 
 export type Question = {

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTests } from "@/lib/mock-test";
 import {
@@ -11,10 +11,12 @@ import {
   History as HistoryIcon,
   Radio,
 } from "lucide-react";
-import { getAttemptHistory, type AttemptSummary } from "@/lib/attempt-history";
+import { type AttemptSummary } from "@/lib/attempt-history";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/attempted-tests")({
   component: AttemptedTestsPage,
@@ -38,16 +40,65 @@ export const Route = createFileRoute("/attempted-tests")({
 });
 
 function AttemptedTestsPage() {
-  // Hooks: must stay at top
-  const [history, setHistory] = useState<AttemptSummary[]>([]);
+  const { user, profile, session } = useAuth();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
+
   const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: () => fetchTests() });
 
-  useEffect(() => {
-    setHistory(getAttemptHistory());
-  }, []);
+  // Gather all valid identifiers for ONLY the currently logged-in account
+  const candidateUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (user?.id) ids.add(String(user.id));
+    if ((user as any)?.roll_number) ids.add(String((user as any).roll_number));
+    if ((user as any)?.student_id) ids.add(String((user as any).student_id));
+    if ((user as any)?.email) ids.add(String((user as any).email));
+    if (profile?.id) ids.add(String(profile.id));
+    if ((profile as any)?.roll_number) ids.add(String((profile as any).roll_number));
+    if (session?.user?.id) ids.add(String(session.user.id));
+    return Array.from(ids).filter(Boolean);
+  }, [user, profile, session]);
+
+  // Fetch attempts strictly from Supabase for this logged-in account
+  const { data: history = [] } = useQuery<AttemptSummary[]>({
+    queryKey: ["user-attempt-history", candidateUserIds],
+    enabled: candidateUserIds.length > 0,
+    queryFn: async () => {
+      if (candidateUserIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("attempts")
+        .select("*, tests(*)")
+        .in("user_id", candidateUserIds)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading attempts from database:", error);
+        return [];
+      }
+
+      return (data ?? []).map((row: any) => {
+        const testObj = row.tests || (tests ?? []).find((t) => t.id === row.test_id);
+        const correct = Number(row.correct_answers || 0);
+        const wrong = Number(row.wrong_answers || 0);
+        const totalAnswered = correct + wrong;
+        const accuracy = totalAnswered > 0 ? Math.round((correct / totalAnswered) * 100) : 0;
+        const maxScore = Number(testObj?.total_marks || testObj?.max_score || 100);
+
+        return {
+          attemptId: String(row.id),
+          testId: String(row.test_id),
+          testTitle: testObj?.title || row.test_title || "Mock Test",
+          category: testObj?.category || "General",
+          score: Number(row.score || 0),
+          maxScore: maxScore,
+          accuracy: Number(row.accuracy ?? accuracy),
+          submittedAt: row.created_at || new Date().toISOString(),
+        } as AttemptSummary;
+      });
+    },
+  });
 
   const categories = useMemo(
     () => [
@@ -123,24 +174,25 @@ function AttemptedTestsPage() {
           TESTS
         </div>
         <nav className="mt-2 flex flex-col gap-1">
-          <a
-            href="/"
+          <Link
+            to="/"
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <FileText className="size-4" />
             <span>All Tests</span>
-          </a>
+          </Link>
 
-          <a
-            href="/?tab=free"
+          <Link
+            to="/"
+            search={{ tab: "free" }}
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <Star className="size-4" />
             <span>Free Mock Tests</span>
-          </a>
+          </Link>
 
-          <a
-            href="/live-tests"
+          <Link
+            to="/live-tests"
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <span className="relative">
@@ -148,39 +200,41 @@ function AttemptedTestsPage() {
               <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-emerald-400 ring-2 ring-[#1e232a]" />
             </span>
             <span>Live Tests</span>
-          </a>
+          </Link>
 
-          <a
-            href="/?tab=packages"
+          <Link
+            to="/"
+            search={{ tab: "packages" }}
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <Trophy className="size-4" />
             <span>Test Series &amp; Combos</span>
-          </a>
+          </Link>
 
-          <a
-            href="/?tab=enrolled"
+          <Link
+            to="/"
+            search={{ tab: "enrolled" }}
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <ShoppingBag className="size-4" />
             <span>My Enrolled / Purchased</span>
-          </a>
+          </Link>
         </nav>
 
         <div className="text-[11px] font-bold text-slate-400 px-3 pt-3 pb-1 tracking-wider mt-4">
           STUDY MATERIAL
         </div>
         <nav className="mt-2 flex flex-col gap-1">
-          <a
-            href="/attempted-tests"
+          <Link
+            to="/attempted-tests"
             className="bg-[#2b323c] text-cyan-400 font-semibold border-l-2 border-cyan-400 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm"
           >
             <HistoryIcon className="size-4" />
             <span>Attempted Tests</span>
-          </a>
+          </Link>
 
-          <a
-            href="/notes"
+          <Link
+            to="/notes"
             className="hover:bg-[#2b323c] hover:text-white transition-colors duration-150 rounded-lg px-3 py-2.5 flex items-center gap-3 text-sm font-medium"
           >
             <BookOpen className="size-4" />
@@ -188,7 +242,7 @@ function AttemptedTestsPage() {
             <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
               NEW
             </span>
-          </a>
+          </Link>
         </nav>
       </aside>
 
@@ -197,7 +251,7 @@ function AttemptedTestsPage() {
         <div className="mx-auto max-w-4xl">
           <h1 className="font-display text-2xl font-bold md:text-3xl">Attempted tests</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every test you have submitted on this device, with score, accuracy and a detailed
+            Every test you have submitted with this account, with score, accuracy and a detailed
             analysis.
           </p>
 
@@ -289,7 +343,7 @@ function AttemptedTestsPage() {
           {history.length === 0 && (
             <div className="mt-6 rounded-xl border border-border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                You haven't attempted any tests yet.{" "}
+                You haven't attempted any tests yet on this account.{" "}
                 <Link to="/" className="text-primary underline">
                   Browse available tests
                 </Link>{" "}
@@ -396,7 +450,6 @@ function AttemptedTestsPage() {
                     />
 
                     <div
-                      // notch: light yellow rectangular tick sitting over the bottom line
                       className="w-2 h-4 -top-1 bg-yellow-200 border border-yellow-300 rounded-sm shadow-sm cursor-pointer z-30 group/cutoff absolute -translate-x-1/2"
                       style={{ left: `${cutoffRatio}%` }}
                     >

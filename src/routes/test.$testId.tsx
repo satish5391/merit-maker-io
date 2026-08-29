@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { cn, isSupabaseUserId } from "@/lib/utils";
 import { clearTestSession, readTestSession, writeTestSession } from "@/lib/test-session";
 
 export const Route = createFileRoute("/test/$testId")({
@@ -60,14 +60,15 @@ function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
   const { user, profile: userProfile } = useAuth();
+  const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
   const { data: databaseProfile } = useQuery({
-    queryKey: ["profile-access", user?.id],
-    enabled: Boolean(user?.id),
+    queryKey: ["profile-access", supabaseUserId],
+    enabled: Boolean(supabaseUserId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("has_free_pass, free_pass_expires_at")
-        .eq("id", user!.id)
+        .eq("id", supabaseUserId!)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -131,25 +132,25 @@ function TestPage() {
   });
 
   const { data: userAttempts = [], isLoading: isLoadingUserAttempts } = useQuery({
-    queryKey: ["test-user-attempts", user?.id, testId],
+    queryKey: ["test-user-attempts", supabaseUserId, testId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!supabaseUserId) return [];
       const { data, error } = await supabase
         .from("attempts")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", supabaseUserId)
         .eq("test_id", testId);
       if (error) throw error;
       return data ?? [];
     },
-    enabled: Boolean(user?.id && testId),
+    enabled: Boolean(supabaseUserId && testId),
   });
 
   const { data: packageAccess, isLoading: isLoadingPackageAccess } = useQuery({
     queryKey: ["package-access", user?.id, testId],
     queryFn: async () => {
       if (hasFreePass) return true;
-      if (!user?.id || !testId) return false;
+      if (!supabaseUserId || !testId) return false;
       const [
         { data: purchases, error: purchasesError },
         { data: packageLinks, error: linksError },
@@ -157,7 +158,7 @@ function TestPage() {
         supabase
           .from("user_purchases")
           .select("item_id")
-          .eq("user_id", user.id)
+          .eq("user_id", supabaseUserId)
           .eq("item_type", "package")
           .eq("payment_status", "completed"),
         supabase.from("package_tests").select("package_id").eq("test_id", testId),
@@ -167,7 +168,7 @@ function TestPage() {
       const purchasedPackageIds = new Set((purchases ?? []).map((purchase) => purchase.item_id));
       return (packageLinks ?? []).some((link) => purchasedPackageIds.has(link.package_id));
     },
-    enabled: Boolean(user?.id && test?.access_type === "package_only" && testId),
+    enabled: Boolean(supabaseUserId && test?.access_type === "package_only" && testId),
   });
 
   const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;

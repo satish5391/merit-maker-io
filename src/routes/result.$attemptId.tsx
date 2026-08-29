@@ -17,6 +17,7 @@ import { fetchAttempt, fetchAttemptScores, fetchTest, countQuestions } from "@/l
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { isSupabaseUserId } from "@/lib/utils";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -70,6 +71,7 @@ function ResultPage() {
   });
 
   const { user } = useAuth();
+  const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!test?.is_live || !test.result_declaration_time) return;
@@ -78,18 +80,18 @@ function ResultPage() {
   }, [test?.is_live, test?.result_declaration_time]);
   const allowedAttempts = test?.max_attempts ?? 1;
   const { data: userAttemptCount = 0 } = useQuery({
-    queryKey: ["user-test-attempt-count", user?.id, attempt?.test_id],
+    queryKey: ["user-test-attempt-count", supabaseUserId, attempt?.test_id],
     queryFn: async () => {
-      if (!user?.id || !attempt?.test_id) return 0;
+      if (!supabaseUserId || !attempt?.test_id) return 0;
       const { data, error } = await supabase
         .from("attempts")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", supabaseUserId)
         .eq("test_id", attempt.test_id);
       if (error) throw error;
       return data?.length ?? 0;
     },
-    enabled: Boolean(user?.id && attempt?.test_id),
+    enabled: Boolean(supabaseUserId && attempt?.test_id),
   });
 
   // Defensive sections parsing (hooks must be at top)
