@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, ChevronDown, GraduationCap, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, ChevronDown, GraduationCap, LogOut, Menu, ShieldCheck, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -29,6 +29,7 @@ export default function Header() {
     Database["public"]["Tables"]["user_notifications"]["Row"][]
   >([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const rawUserId = auth.user?.id;
@@ -91,7 +92,16 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-2 sm:py-3">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-2 px-4 py-3">
+        <button
+          type="button"
+          aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          className="order-first rounded-md p-2 text-muted-foreground hover:bg-muted sm:hidden"
+        >
+          {mobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+        </button>
         <Link className="flex items-center gap-2.5 transition-opacity hover:opacity-90" to="/">
           <img
             src="/logo.png"
@@ -274,6 +284,20 @@ export default function Header() {
           )}
         </div>
       </div>
+      {mobileMenuOpen && (
+        <nav className="border-t border-border bg-card px-4 py-3 sm:hidden">
+          <div className="flex flex-col gap-1 text-sm">
+            <Link onClick={() => setMobileMenuOpen(false)} to="/" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Tests</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/" search={{ tab: "free" }} className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Free Mock Tests</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/live-tests" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Live Tests</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/" search={{ tab: "packages" }} className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Test Series &amp; Combos</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/" search={{ tab: "enrolled" }} className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">My Enrolled / Purchased</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/attempted-tests" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Attempted Tests</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/notes" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Study Notes</Link>
+            {isAdmin && <Link onClick={() => setMobileMenuOpen(false)} to="/admin" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Admin</Link>}
+          </div>
+        </nav>
+      )}
     </header>
   );
 }

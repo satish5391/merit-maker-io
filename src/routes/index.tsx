@@ -594,9 +594,9 @@ function Home() {
       )}
 
       {activeView === "home" && <PromoStrip ads={advertisements} />}
-      <main id="tests" className="flex h-[calc(100vh-64px)] overflow-hidden">
+      <main id="tests" className="flex min-h-[calc(100vh-64px)] flex-col overflow-x-hidden md:flex-row">
         {/* Left sidebar */}
-        <aside className="w-56 md:w-60 flex-shrink-0 bg-[#161a1e] border-r border-[#262c35] p-3 flex flex-col justify-between h-full overflow-y-auto">
+        <aside className="hidden flex-shrink-0 border-r border-[#262c35] bg-[#161a1e] p-3 md:flex md:w-64 md:flex-col md:justify-between md:overflow-y-auto">
           <div className="px-3 py-4 flex justify-center items-center border-b border-slate-800/60 mb-2">
             <Link to="/" aria-label="Rankdon home" className="block w-full">
               <img
@@ -707,7 +707,7 @@ function Home() {
         </aside>
 
         {/* Right content */}
-        <div className="flex-1 h-full overflow-y-auto bg-[#f8fafc] p-6 md:p-8 min-w-0">
+        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f8fafc] p-4 md:p-8">
           {activeView === "home" ? (
             <section className="space-y-8">
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_270px]">
@@ -765,7 +765,7 @@ function Home() {
                     View all series
                   </button>
                 </div>
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {packagesWithMeta.slice(0, 3).map((pkg: any, index: number) => (
                     <article
                       key={pkg?.id ?? `featured-${index}`}
@@ -785,7 +785,7 @@ function Home() {
                     </article>
                   ))}
                   {packagesWithMeta.length === 0 && (
-                    <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-muted-foreground md:col-span-3">
+                    <article className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
                       Rankdon Mock Series bundles will appear here as soon as they are published.
                     </article>
                   )}
@@ -853,7 +853,7 @@ function Home() {
 
               <InlinePromotion ads={advertisements} />
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {isLoading &&
                   [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
 

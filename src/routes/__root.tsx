@@ -114,7 +114,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="overflow-x-hidden">
         {children}
         <Scripts />
       </body>
@@ -128,7 +128,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="flex min-h-screen flex-col font-sans">
+        <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden font-sans">
           <SiteHeaderWithAuth />
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <main className="flex-1">
