@@ -6,8 +6,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 import { ADMIN_EMAILS } from "@/lib/admin-access";
 import { getDisplayName } from "@/lib/user-profile";
+import { isSupabaseUserId } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,27 +31,30 @@ export default function Header() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const userId = auth.user?.id;
-    if (!userId) {
+    const rawUserId = auth.user?.id;
+    if (!rawUserId || !isSupabaseUserId(rawUserId)) {
       setNotifications([]);
       setUnreadCount(0);
       return;
     }
 
+    const userId = rawUserId;
+
     const fetchNotifications = async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("user_notifications")
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(20);
+
       if (error) {
         console.error("Error fetching notifications:", error);
         return;
       }
       const nextNotifications = data ?? [];
       setNotifications(nextNotifications);
-      setUnreadCount(nextNotifications.filter((notification) => !notification.is_read).length);
+      setUnreadCount(nextNotifications.filter((notification: any) => !notification.is_read).length);
     };
 
     void fetchNotifications();
@@ -160,7 +163,7 @@ export default function Header() {
                       className="items-start gap-2"
                       onSelect={async () => {
                         if (!notification.is_read) {
-                          const { error } = await supabase
+                          const { error } = await (supabase as any)
                             .from("user_notifications")
                             .update({ is_read: true })
                             .eq("id", notification.id);
@@ -185,6 +188,7 @@ export default function Header() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-full border border-border bg-background px-2 py-1.5 text-left shadow-sm transition-colors hover:bg-accent">

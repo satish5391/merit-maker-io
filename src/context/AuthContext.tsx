@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getUserProfile, setUserProfile, type UserProfile } from "@/lib/user-profile";
+import { getDefaultProfile, type UserProfile } from "@/lib/user-profile";
+import { isSupabaseUserId } from "@/lib/utils";
 
 type User = any;
 
@@ -12,15 +13,12 @@ type AuthContextValue = {
   loading: boolean;
   profile: UserProfile | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: any }>;
-  signUpWithPassword: (email: string, password: string) => Promise<{ error: any }>;
-  updateProfile: (updates: Partial<UserProfile>) => UserProfile;
-  completeDevAuth: (payload: {
-    email: string;
-    phone?: string;
-    name?: string;
-    avatarUrl?: string;
-    targetExam?: string;
-  }) => UserProfile;
+  signUpWithPassword: (
+    email: string,
+    password: string,
+    fullName: string,
+  ) => Promise<{ error: any }>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<UserProfile>;
   signOut: () => Promise<void>;
   openAuthModal: (mode?: AuthModalTab) => void;
   closeAuthModal: () => void;
@@ -41,70 +39,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const restoreDevSession = () => {
-      if (typeof window === "undefined") return;
-      const raw = window.localStorage.getItem("rankdon.dev-auth-session");
-      if (!raw) return;
-
-      try {
-        const parsed = JSON.parse(raw) as {
-          id?: string;
-          email?: string;
-          phone?: string;
-          name?: string;
-          avatarUrl?: string;
-        };
-        if (!parsed.email) return;
-        const storedProfile = getUserProfile(parsed.email);
-        const mergedProfile = {
-          ...storedProfile,
-          id: parsed.id || storedProfile.id || `RD-${new Date().getFullYear()}-001`,
-          email: parsed.email,
-          phone: parsed.phone || storedProfile.phone,
-          name: parsed.name || storedProfile.name,
-          avatarUrl: parsed.avatarUrl || storedProfile.avatarUrl,
-        };
-        setUser({
-          id: mergedProfile.id,
-          email: mergedProfile.email,
-          phone: mergedProfile.phone,
-          name: mergedProfile.name,
-        });
-        setSession({
-          access_token: "dev-token",
-          user: { id: mergedProfile.id, email: mergedProfile.email, phone: mergedProfile.phone },
-        });
-        setProfile(mergedProfile);
-      } catch {
-        window.localStorage.removeItem("rankdon.dev-auth-session");
-      }
-    };
-
-    restoreDevSession();
-
     void supabase.auth.getSession().then(({ data: d }) => {
       if (!mounted) return;
       setSession(d.session ?? null);
       const nextUser = d.session?.user ?? null;
       setUser(nextUser);
-      setProfile(
-        nextUser
-          ? getUserProfile(nextUser.email ?? "")
-          : window.localStorage.getItem("rankdon.dev-auth-session")
-            ? getUserProfile(
-                (JSON.parse(window.localStorage.getItem("rankdon.dev-auth-session") ?? "{}") as any)
-                  ?.email ?? "",
-              )
-            : null,
-      );
+      setProfile(null);
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUser = session?.user ?? null;
       setSession(session ?? null);
       setUser(nextUser);
-      setProfile(nextUser ? getUserProfile(nextUser.email ?? "") : null);
+      setProfile(null);
       setLoading(false);
     });
 
@@ -114,66 +62,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const updateProfile = (updates: Partial<UserProfile>) => {
-    const email = user?.email ?? updates.email ?? "";
-    const nextProfile = setUserProfile(
-      { ...(profile ?? getUserProfile(email)), ...updates, email },
-      email,
-    );
-    setProfile(nextProfile);
-    if (user && user.email) {
-      window.localStorage.setItem(
-        "rankdon.dev-auth-session",
-        JSON.stringify({
-          id: nextProfile.id,
-          email: nextProfile.email,
-          phone: nextProfile.phone,
-          name: nextProfile.name,
-          avatarUrl: nextProfile.avatarUrl,
-        }),
-      );
-    }
-    return nextProfile;
-  };
+  useEffect(() => {
+    if (!user?.id || !isSupabaseUserId(user.id)) return;
+    let active = true;
 
-  const completeDevAuth = (payload: {
-    email: string;
-    phone?: string;
-    name?: string;
-    avatarUrl?: string;
-    targetExam?: string;
-  }) => {
-    const generatedId = `RD-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
-    const baseProfile = getUserProfile(payload.email);
-    const nextProfile = setUserProfile(
-      {
-        ...baseProfile,
-        id: baseProfile.id && baseProfile.id !== "RD-2026-001" ? baseProfile.id : generatedId,
-        email: payload.email,
-        phone: payload.phone || baseProfile.phone,
-        name: payload.name || baseProfile.name,
-        avatarUrl: payload.avatarUrl || baseProfile.avatarUrl,
-        targetExam: payload.targetExam || baseProfile.targetExam,
-        joinedDate: new Date().toISOString(),
-      },
-      payload.email,
-    );
+    void (async () => {
+      try {
+        const { data, error }: { data: Record<string, any> | null; error: Error | null } =
+          await (supabase as any)
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+        if (error) {
+          console.warn("Unable to load profile from Supabase:", error);
+          return;
+        }
+          if (!active || !data?.["full_name"]) return;
 
-    const devUser = {
-      id: nextProfile.id,
-      email: nextProfile.email,
-      phone: nextProfile.phone,
-      name: nextProfile.name,
-      avatarUrl: nextProfile.avatarUrl,
+          const email = user.email ?? "";
+          const defaultProfile = getDefaultProfile(email);
+          setProfile({
+            ...defaultProfile,
+            ...data,
+            id: user.id,
+            email,
+            name: data["full_name"],
+            full_name: data["full_name"],
+            avatarUrl: data["avatar_url"] ?? defaultProfile.avatarUrl,
+            joinedDate: data["joined_at"] ?? data["created_at"] ?? defaultProfile.joinedDate,
+          });
+      } catch (error) {
+        console.warn("Unable to load profile from Supabase:", error);
+      }
+    })();
+
+    return () => {
+      active = false;
     };
+  }, [user?.email, user?.id]);
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("rankdon.dev-auth-session", JSON.stringify(devUser));
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user?.id || !isSupabaseUserId(user.id)) {
+      throw new Error("You must be signed in to update your profile.");
     }
-
-    setUser(devUser as any);
-    setSession({ access_token: "dev-token", user: devUser });
+    const email = user?.email ?? updates.email ?? "";
+    const updatedName = updates.name ?? updates.full_name;
+    const { data, error } = await (supabase as any)
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        full_name: updatedName ?? "",
+        email,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    const nextProfile = { ...(data as UserProfile), name: data.full_name ?? "", email };
     setProfile(nextProfile);
+
     return nextProfile;
   };
 
@@ -182,41 +130,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: res.error };
   };
 
-  const signUpWithPassword = async (email: string, password: string) => {
-    const res = await supabase.auth.signUp({ email, password });
+  const signUpWithPassword = async (email: string, password: string, fullName: string) => {
+    const res = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+    if (!res.error && res.data.user) {
+      const { error } = await (supabase as any).from("profiles").upsert({
+        id: res.data.user.id,
+        full_name: fullName,
+        email,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) return { error };
+    }
     return { error: res.error };
   };
 
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
-    } catch {
-      // no-op in dev mode if Supabase is unavailable
-    }
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("rankdon.user-profile");
-      window.localStorage.removeItem("rankdon.dev-auth-session");
+    } finally {
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      if (typeof window !== "undefined") {
+        for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+          const key = window.localStorage.key(index);
+          if (key?.startsWith("sb-")) window.localStorage.removeItem(key);
+        }
+      }
     }
   };
 
   useEffect(() => {
-    if (!user?.id) return;
+    const userId = user?.id;
+    if (!userId || !isSupabaseUserId(userId)) return;
     let active = true;
-    void supabase
+
+    void (supabase as any)
       .from("profiles")
       .select("is_banned")
-      .eq("id", user.id)
+      .eq("id", userId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: any) => {
         if (active && data?.is_banned) {
           window.alert("Your account has been suspended by the administrator.");
           void signOut();
         }
       })
       .catch(() => undefined);
+
     return () => {
       active = false;
     };
@@ -237,7 +198,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithPassword,
       signUpWithPassword,
       updateProfile,
-      completeDevAuth,
       signOut,
       openAuthModal,
       closeAuthModal,

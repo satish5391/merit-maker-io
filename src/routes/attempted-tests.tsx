@@ -40,65 +40,63 @@ export const Route = createFileRoute("/attempted-tests")({
 });
 
 function AttemptedTestsPage() {
-  const { user, profile, session } = useAuth();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
 
   const { data: tests } = useQuery({ queryKey: ["tests"], queryFn: () => fetchTests() });
 
-  // Gather all valid identifiers for ONLY the currently logged-in account
-  const candidateUserIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (user?.id) ids.add(String(user.id));
-    if ((user as any)?.roll_number) ids.add(String((user as any).roll_number));
-    if ((user as any)?.student_id) ids.add(String((user as any).student_id));
-    if ((user as any)?.email) ids.add(String((user as any).email));
-    if (profile?.id) ids.add(String(profile.id));
-    if ((profile as any)?.roll_number) ids.add(String((profile as any).roll_number));
-    if (session?.user?.id) ids.add(String(session.user.id));
-    return Array.from(ids).filter(Boolean);
-  }, [user, profile, session]);
-
-  // Fetch attempts strictly from Supabase for this logged-in account
   const { data: history = [] } = useQuery<AttemptSummary[]>({
-    queryKey: ["user-attempt-history", candidateUserIds],
-    enabled: candidateUserIds.length > 0,
+    queryKey: ["user-attempt-history", user?.id],
+    enabled: Boolean(user),
     queryFn: async () => {
-      if (candidateUserIds.length === 0) return [];
+      if (!user) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("attempts")
-        .select("*, tests(*)")
-        .in("user_id", candidateUserIds)
+        .select("*")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) {
         console.error("Error loading attempts from database:", error);
-        return [];
+        throw error;
       }
 
-      return (data ?? []).map((row: any) => {
+      const remoteHistory = (data ?? []).map((row: any) => {
         const testObj = row.tests || (tests ?? []).find((t) => t.id === row.test_id);
-        const correct = Number(row.correct_answers || 0);
-        const wrong = Number(row.wrong_answers || 0);
+        const correct = Number(row.correct_count ?? row.correct_answers ?? 0);
+        const wrong = Number(row.wrong_count ?? row.wrong_answers ?? 0);
         const totalAnswered = correct + wrong;
-        const accuracy = totalAnswered > 0 ? Math.round((correct / totalAnswered) * 100) : 0;
-        const maxScore = Number(testObj?.total_marks || testObj?.max_score || 100);
+        const fallbackAccuracy = totalAnswered > 0 ? Math.round((correct / totalAnswered) * 100) : 0;
+        const maxScore = Number(row.max_score ?? testObj?.total_marks ?? testObj?.max_score ?? 100);
 
         return {
           attemptId: String(row.id),
           testId: String(row.test_id),
           testTitle: testObj?.title || row.test_title || "Mock Test",
           category: testObj?.category || "General",
-          score: Number(row.score || 0),
+          score: Number(row.score ?? 0),
           maxScore: maxScore,
-          accuracy: Number(row.accuracy ?? accuracy),
+          accuracy: Number(row.accuracy ?? fallbackAccuracy),
           submittedAt: row.created_at || new Date().toISOString(),
         } as AttemptSummary;
       });
+      return remoteHistory;
     },
   });
+
+  if (!user) {
+    return (
+      <main className="mx-auto max-w-lg px-4 py-16 text-center">
+        <h1 className="font-display text-2xl font-bold">Please log in to view your attempted tests</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Sign in to access your cloud-saved test history across devices.
+        </p>
+      </main>
+    );
+  }
 
   const categories = useMemo(
     () => [

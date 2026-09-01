@@ -11,16 +11,14 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import { fetchQuestions, fetchTest, fetchStudentAttempts } from "@/lib/mock-test";
-import { setStudentName } from "@/lib/student";
-import { getCompletedTests, markTestCompleted, saveAttemptToHistory } from "@/lib/attempt-history";
+import { fetchQuestions, fetchTest } from "@/lib/mock-test";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn, isSupabaseUserId } from "@/lib/utils";
-import { clearTestSession, readTestSession, writeTestSession } from "@/lib/test-session";
+import { clearTestSession } from "@/lib/test-session";
 
 export const Route = createFileRoute("/test/$testId")({
   head: () => ({
@@ -61,6 +59,7 @@ function TestPage() {
   const navigate = useNavigate();
   const { user, profile: userProfile } = useAuth();
   const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
+
   const { data: databaseProfile } = useQuery({
     queryKey: ["profile-access", supabaseUserId],
     enabled: Boolean(supabaseUserId),
@@ -74,19 +73,21 @@ function TestPage() {
       return data;
     },
   });
+
   const hasFreePass = Boolean(
     (databaseProfile?.has_free_pass ?? userProfile?.has_free_pass) &&
-    (!(databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at) ||
-      new Date(
-        databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at!,
-      ).getTime() > Date.now()),
+      (!(databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at) ||
+        new Date(
+          databaseProfile?.free_pass_expires_at ?? userProfile?.free_pass_expires_at!,
+        ).getTime() > Date.now()),
   );
 
-  const { data: test, isLoading: isLoadingTest } = useQuery({
+  const { data: test } = useQuery({
     queryKey: ["test", testId],
     queryFn: () => fetchTest(testId),
   });
-  const { data: questions, isLoading: isLoadingQuestions } = useQuery({
+
+  const { data: questions } = useQuery({
     queryKey: ["questions", testId],
     queryFn: () => fetchQuestions(testId),
   });
@@ -109,9 +110,19 @@ function TestPage() {
   const [finalSummaryOpen, setFinalSummaryOpen] = useState(false);
   const [violationsCount, setViolationsCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const hydratedSessionRef = useRef(false);
   const submittedRef = useRef(false);
   const violationsCountRef = useRef(0);
+
+  const resetTestState = useCallback(() => {
+    setAnswers({});
+    setMarked({});
+    setVisited({});
+    setCurrent(0);
+    setCurrentSection(0);
+    setSectionSubmitted({});
+    setIsPaused(false);
+    setSectionSecondsLeft(null);
+  }, []);
 
   useEffect(() => {
     if (name.trim()) return;
@@ -124,12 +135,6 @@ function TestPage() {
       "";
     if (defaultName) setName(defaultName);
   }, [name, user?.email, user?.user_metadata, userProfile]);
-
-  const { data: myAttempts } = useQuery({
-    queryKey: ["my-attempts", name.trim()],
-    queryFn: () => fetchStudentAttempts(name.trim()),
-    enabled: name.trim().length > 0 && !user?.id,
-  });
 
   const { data: userAttempts = [], isLoading: isLoadingUserAttempts } = useQuery({
     queryKey: ["test-user-attempts", supabaseUserId, testId],
@@ -171,30 +176,21 @@ function TestPage() {
     enabled: Boolean(supabaseUserId && test?.access_type === "package_only" && testId),
   });
 
-  const usedAttempts = (myAttempts ?? []).filter((a) => a.test_id === testId).length;
-  const effectiveAttemptCount = user?.id ? userAttempts.length : usedAttempts;
+  const effectiveAttemptCount = user ? userAttempts.length : 0;
   const maxAllowedAttempts = test?.max_attempts || 1;
-  const activeAttempt = user?.id ? (userAttempts?.[0] ?? null) : (myAttempts?.[0] ?? null);
-  const activeAttemptId = activeAttempt?.id ?? null;
-  const localCompletedAttemptId = getCompletedTests()[testId];
-  const completedDatabaseAttempt = (user?.id ? userAttempts : (myAttempts ?? [])).find(
+  const completedDatabaseAttempt = userAttempts.find(
     (attempt) => (attempt as any).status !== "in_progress",
   );
-  const completedAttemptId = localCompletedAttemptId ?? completedDatabaseAttempt?.id;
-  const isCheckingCompletedAttempt = user?.id
-    ? isLoadingUserAttempts
-    : Boolean(name.trim()) && myAttempts === undefined;
+  const completedAttemptId = completedDatabaseAttempt?.id;
+  const isCheckingCompletedAttempt = isLoadingUserAttempts;
   const isLive = Boolean((test as any)?.is_live);
 
   useEffect(() => {
     if (isLive && !isCheckingCompletedAttempt && completedAttemptId) {
-      clearTestSession(testId, user?.id);
-      clearTestSession(testId, null);
       void navigate({ to: "/live-tests", replace: true });
     }
   }, [completedAttemptId, isCheckingCompletedAttempt, isLive, navigate, testId, user?.id]);
 
-  // Defensive parse sections
   const rawSections = (test as any)?.sections;
   const sections = useMemo(() => {
     if (!rawSections) return [] as any[];
@@ -209,7 +205,6 @@ function TestPage() {
     return Array.isArray(rawSections) ? rawSections : [];
   }, [rawSections]);
 
-  // If no sections defined, fallback to single default section
   const effectiveSections = useMemo(() => {
     if (sections.length > 0) return sections;
     return [
@@ -221,7 +216,6 @@ function TestPage() {
     ];
   }, [sections, test]);
 
-  // Map questions to sections safely
   const sectionQuestionMap = useMemo(() => {
     const map: Record<string, any[]> = {};
     for (const s of effectiveSections) map[s.id] = [];
@@ -235,7 +229,6 @@ function TestPage() {
     return map;
   }, [effectiveSections, questions]);
 
-  // ordered questions and section start indices
   const { orderedQuestions, sectionStartIndex } = useMemo(() => {
     const o: any[] = [];
     const starts: number[] = [];
@@ -250,7 +243,6 @@ function TestPage() {
     return sectionStartIndex[index] ?? -1;
   }
 
-  // submit callback (after orderedQuestions computed)
   const submit = useCallback(
     async (auto = false) => {
       if (submittedRef.current || !test || !orderedQuestions) return;
@@ -269,39 +261,22 @@ function TestPage() {
         const score = correct * Number(test.positive_marks) - wrong * Number(test.negative_marks);
         const attempted = correct + wrong;
         const accuracy = attempted === 0 ? 0 : Math.round((correct / attempted) * 1000) / 10;
-        const timeTaken = test.duration_minutes * 60 - secondsLeft;
+        const timeTaken = (test.duration_minutes ?? 0) * 60 - secondsLeft;
 
-        // resolve user id by checking Supabase session then fallback to context user
-        const { data: { session } = {} } = await supabase.auth.getSession();
-        const resolvedUserId = session?.user?.id ?? (user ? user.id : null);
-
-        // if the test requires login, stop and prompt auth instead of saving anonymously
-        const loginRequired = Boolean(
-          (test as any)?.require_login || (test as any)?.login_required,
-        );
-        if (loginRequired && !resolvedUserId) {
-          try {
-            const auth = require("@/context/AuthContext");
-            const ctx = auth.useAuth ? auth.useAuth() : null;
-            ctx?.openAuthModal?.();
-          } catch (e) {
-            // ignore
-          }
+        if (!user?.id || !isSupabaseUserId(user.id)) {
           toast.error("Please sign in to submit this test");
           submittedRef.current = false;
           setSubmitting(false);
           return;
         }
 
-        // 1. Defensively resolve current user session
         const studentIdentifier = user?.email || name.trim() || "Student";
         const integrityStatus: "clean" | "flagged" =
           violationsCountRef.current > 0 ? "flagged" : "clean";
-
         const insertPayload = {
           test_id: test.id,
-          user_id: user?.id || null,
-          student_name: studentIdentifier,
+          user_id: user.id,
+          student_name: studentIdentifier || (user as any)?.full_name || "Student",
           score: Math.round(score * 100) / 100,
           max_score: orderedQuestions.length * Number(test.positive_marks),
           correct_count: correct,
@@ -315,45 +290,24 @@ function TestPage() {
           status: "completed" as const,
         };
 
-        const { data, error } = await supabase
+        const { data: remoteAttempt, error } = await (supabase as any)
           .from("attempts")
           .insert([insertPayload])
-          .select()
+          .select("id")
           .single();
-
-        if (error) {
-          console.error("Failed to save attempt to Supabase:", error);
-          throw error;
-        }
-
-        if (data) {
-          if (test.is_live) markTestCompleted(test.id, data.id);
-          saveAttemptToHistory({
-            id: data.id,
-            test_id: data.test_id,
-            score: Number(data.score),
-            max_score: Number(data.max_score),
-            accuracy: Number(data.accuracy),
-            created_at: data.created_at,
-            testTitle: test.title,
-            category: test.category,
-          });
-        }
+        if (error || !remoteAttempt?.id) throw error ?? new Error("Could not save attempt.");
         if (auto) toast.info("Time's up — your test was submitted automatically.");
         setStarted(false);
         setIsPaused(false);
-        clearTestSession(testId, resolvedUserId);
-        clearTestSession(testId, user?.id);
-        clearTestSession(testId, null);
-        clearTestSession(testId, undefined);
-        navigate({ to: "/result/$attemptId", params: { attemptId: data.id } });
+        clearTestSession(testId, user.id);
+        navigate({ to: "/result/$attemptId", params: { attemptId: String(remoteAttempt.id) } });
       } catch (e) {
         submittedRef.current = false;
         setSubmitting(false);
         toast.error(e instanceof Error ? e.message : "Could not submit test");
       }
     },
-    [answers, name, navigate, orderedQuestions, secondsLeft, test],
+    [answers, name, navigate, orderedQuestions, secondsLeft, test, testId, user],
   );
 
   const sectionalTimingEnabled =
@@ -409,6 +363,7 @@ function TestPage() {
     getSectionStartIndex,
     submit,
   ]);
+
   useEffect(() => {
     if (!started || !orderedQuestions?.length) return;
     const q = orderedQuestions[current];
@@ -424,86 +379,22 @@ function TestPage() {
     }
   }, [started, current, orderedQuestions?.length]);
 
-  // active section and questions derived from computed memos
   const activeSection = effectiveSections[currentSection] ?? effectiveSections[0];
   const activeSectionQuestions =
     sectionQuestionMap[activeSection?.id ?? effectiveSections[0].id] ?? [];
 
-  const persistSession = useCallback(() => {
-    if (!started || !testId) return;
-    writeTestSession(testId, user?.id, {
-      answers,
-      markedForReview: Object.keys(marked).filter((id) => marked[id]),
-      visitedQuestions: Object.keys(visited).filter((id) => visited[id]),
-      currentQuestionIndex: current,
-      currentSectionIndex: currentSection,
-      remainingTimeSeconds:
-        sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft,
-      completedSections: Object.keys(sectionSubmitted).filter((id) => sectionSubmitted[id]),
-      isPaused,
-    });
-  }, [
-    answers,
-    current,
-    currentSection,
-    isPaused,
-    marked,
-    sectionSecondsLeft,
-    sectionSubmitted,
-    sectionalTimingEnabled,
-    secondsLeft,
-    started,
-    testId,
-    user?.id,
-    visited,
-  ]);
-
-  useEffect(() => {
-    if (!test || !questions || hydratedSessionRef.current) return;
-    const session = readTestSession(testId, user?.id);
-    hydratedSessionRef.current = true;
-    if (!session) return;
-    setAnswers(session.answers);
-    setMarked(Object.fromEntries(session.markedForReview.map((id) => [id, true])));
-    setVisited(Object.fromEntries(session.visitedQuestions.map((id) => [id, true])));
-    setCurrentSection(
-      Math.max(0, Math.min(session.currentSectionIndex, effectiveSections.length - 1)),
-    );
-    setCurrent(
-      Math.max(0, Math.min(session.currentQuestionIndex, Math.max(orderedQuestions.length - 1, 0))),
-    );
-    setSectionSubmitted(Object.fromEntries(session.completedSections.map((id) => [id, true])));
-    if (sectionalTimingEnabled) setSectionSecondsLeft(session.remainingTimeSeconds);
-    else setSecondsLeft(session.remainingTimeSeconds);
-    setIsPaused(isLive ? false : session.isPaused);
-    setStarted(true);
-    toast.info("Resumed from your previous session.");
-  }, [
-    effectiveSections.length,
-    isLive,
-    orderedQuestions.length,
-    questions,
-    sectionalTimingEnabled,
-    test,
-    testId,
-    user?.id,
-  ]);
-
   useEffect(() => {
     if (!started) return;
-    persistSession();
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         if (!isLive) setIsPaused(true);
-        persistSession();
       }
     };
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      persistSession();
     };
-  }, [isLive, persistSession, started]);
+  }, [isLive, started]);
 
   useEffect(() => {
     const onFullscreenChange = () => {
@@ -551,6 +442,17 @@ function TestPage() {
 
   if (!test || !questions || questions.length === 0) {
     return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading test…</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <h1 className="font-display text-2xl font-bold">Sign in to attempt this test</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your attempts are saved securely to your account and available across devices.
+        </p>
+      </div>
+    );
   }
 
   if (isLive && (isCheckingCompletedAttempt || completedAttemptId)) {
@@ -609,9 +511,7 @@ function TestPage() {
   const currentQuestion = orderedQuestions?.[currentIndex] ?? questions?.[currentIndex] ?? null;
   const currentQuestionId = currentQuestion?.id ?? questions?.[currentIndex]?.id ?? null;
 
-  const limitReached = user?.id
-    ? effectiveAttemptCount >= maxAllowedAttempts
-    : test.max_attempts !== null && name.trim().length > 0 && usedAttempts >= test.max_attempts;
+  const limitReached = effectiveAttemptCount >= maxAllowedAttempts;
 
   if (!started) {
     return (
@@ -655,17 +555,19 @@ function TestPage() {
             <Button
               className="mt-6 w-full"
               size="lg"
-                onClick={async () => {
-                  if (!document.fullscreenElement) {
-                    try {
-                      await document.documentElement.requestFullscreen();
-                    } catch {
-                      toast.error("Fullscreen is required to begin the test.");
-                      return;
-                    }
+              onClick={async () => {
+                if (!document.fullscreenElement) {
+                  try {
+                    await document.documentElement.requestFullscreen();
+                  } catch {
+                    toast.error("Fullscreen is required to begin the test.");
+                    return;
                   }
-                setStudentName(name.trim());
-                setSecondsLeft(test.duration_minutes * 60);
+                }
+                clearTestSession(testId, user?.id);
+                clearTestSession(testId, null);
+                resetTestState();
+                setSecondsLeft(Number(test.duration_minutes ?? 0) * 60);
                 const sectionalEnabled = sectionalTimingEnabled;
                 if (sectionalEnabled) {
                   const first = sections[0];
@@ -705,14 +607,13 @@ function TestPage() {
   }
 
   const questionId = currentQuestionId ?? currentQuestion?.id ?? null;
-
   const q = currentQuestion;
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = orderedQuestions.length;
   const displayedSeconds =
     sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
-  const warning = displayedSeconds <= 120 && displayedSeconds > 0; // below 2 minutes
-  const critical = displayedSeconds <= 60 && displayedSeconds > 0; // below 1 minute
+  const warning = displayedSeconds <= 120 && displayedSeconds > 0;
+  const critical = displayedSeconds <= 60 && displayedSeconds > 0;
   const activeSectionStart = getSectionStartIndex(currentSection);
   const activeSectionEnd = activeSectionStart + activeSectionQuestions.length - 1;
   const isLastQuestionOfSection = current === activeSectionEnd;
@@ -768,7 +669,6 @@ function TestPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* palette toggle for small screens */}
           <button
             className="inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm hover:bg-muted"
             onClick={() => setPaletteOpen((s) => !s)}
@@ -779,7 +679,6 @@ function TestPage() {
             <span className="hidden sm:inline">Questions</span>
           </button>
 
-          {/* Pause Test Button */}
           {!isLive && (
             <Button
               type="button"
@@ -816,10 +715,8 @@ function TestPage() {
 
       <Progress value={(answeredCount / Math.max(1, totalQuestions)) * 100} className="mt-4 h-2" />
 
-      {/* Section tabs */}
       <div className="mt-4 flex gap-2 overflow-auto">
         {sections.map((s, si) => {
-          const start = getSectionStartIndex(si);
           const count = (sectionQuestionMap[s.id] ?? []).length;
           const submitted = Boolean(sectionSubmitted[s.id]);
           const disabled = sectionalTimingEnabled && si !== currentSection;
@@ -908,7 +805,6 @@ function TestPage() {
               const isAnswered = itemId ? answers[itemId] !== undefined : false;
               const globalIndex = getSectionStartIndex(currentSection) + i;
 
-              // priority: marked+answered -> marked-with-dot, marked -> purple, answered -> green, visited-not-answered -> red, not visited -> gray
               let classes =
                 "aspect-square rounded-md border text-xs font-semibold transition-colors relative";
               if (isMarked && isAnswered) classes += " bg-violet-600 text-white";
@@ -955,7 +851,6 @@ function TestPage() {
         </aside>
       </div>
 
-      {/* Unified action bar */}
       <div className="fixed bottom-4 left-0 right-0 z-50 mx-auto max-w-5xl px-4">
         <div className="rounded-xl border border-border bg-background/80 p-3 shadow-lg backdrop-blur-md">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1181,7 +1076,6 @@ function TestPage() {
         </div>
       )}
 
-      {/* Pause Overlay Modal */}
       {!isLive && isPaused && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl">

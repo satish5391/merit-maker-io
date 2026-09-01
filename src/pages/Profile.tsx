@@ -62,9 +62,9 @@ export default function ProfilePage() {
         ? "Pro Active"
         : "Free Plan";
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const sanitizedName = form.name.trim() || getDisplayName(undefined, user.email);
-    const nextProfile = updateProfile({
+    const nextProfile = await updateProfile({
       ...form,
       name: sanitizedName,
       email: user.email ?? form.email,
@@ -88,11 +88,11 @@ export default function ProfilePage() {
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const nextAvatarUrl = typeof reader.result === "string" ? reader.result : "";
       if (!nextAvatarUrl) return;
 
-      const nextProfile = updateProfile({
+      const nextProfile = await updateProfile({
         ...form,
         avatarUrl: nextAvatarUrl,
       });

@@ -23,13 +23,11 @@ import {
   Bell,
   Gift,
   KeyRound,
-  Ban,
   Check,
 } from "lucide-react";
 import {
   DEFAULT_ADVERTISEMENTS,
   HeroCarousel,
-  SidebarPromotions,
   type Advertisement,
 } from "@/components/RankdonPromotions";
 import { toast } from "sonner";
@@ -74,7 +72,7 @@ type Draft = {
   options: string[];
   correct_index: number;
   explanation: string;
-  sectionId?: string;
+  sectionId: string;
 };
 
 const emptyDraft = (): Draft => ({
@@ -82,6 +80,7 @@ const emptyDraft = (): Draft => ({
   options: ["", "", "", ""],
   correct_index: 0,
   explanation: "",
+  sectionId: "section-default",
 });
 
 const CATEGORY_SUGGESTIONS = [
@@ -218,8 +217,8 @@ function AdminDashboard() {
       {
         id: `section-${Date.now()}`,
         name: "Default",
-        subject: subject,
-        duration_minutes: duration,
+        subject: "General",
+        duration_minutes: 10,
       },
     ]);
     setSectionalTiming(false);
@@ -245,7 +244,7 @@ function AdminDashboard() {
       if (isLive && new Date(resultDeclarationTime) < new Date(endTime))
         throw new Error("Results cannot be declared before the live window ends");
 
-      const payload = {
+      const payload: Record<string, any> = {
         title: title.trim(),
         category: category.trim() || "General",
         subject: subject.trim() || "General",
@@ -276,15 +275,15 @@ function AdminDashboard() {
       let testId = editingId;
 
       if (editingId) {
-        const { error } = await supabase.from("tests").update(payload).eq("id", editingId);
+        const { error } = await (supabase as any).from("tests").update(payload).eq("id", editingId);
         if (error) throw error;
-        const { error: delErr } = await supabase
+        const { error: delErr } = await (supabase as any)
           .from("questions")
           .delete()
           .eq("test_id", editingId);
         if (delErr) throw delErr;
       } else {
-        const { data: test, error } = await supabase
+        const { data: test, error } = await (supabase as any)
           .from("tests")
           .insert(payload)
           .select()
@@ -293,15 +292,16 @@ function AdminDashboard() {
         testId = test.id;
       }
 
-      const { error: qErr } = await supabase.from("questions").insert(
+      const defaultSecId = sections[0]?.id || "section-default";
+      const { error: qErr } = await (supabase as any).from("questions").insert(
         valid.map((q, i) => ({
           test_id: testId!,
           position: i + 1,
           body: q.body.trim(),
-          options: q.options.map((o) => o.trim()),
+          options: q.options.map((o) => String(o ?? "").trim()),
           correct_index: q.correct_index,
           explanation: q.explanation.trim(),
-          section_id: q.sectionId ?? sections[0].id,
+          section_id: q.sectionId || defaultSecId,
         })),
       );
       if (qErr) throw qErr;
@@ -361,7 +361,7 @@ function AdminDashboard() {
               options: q.options.length ? q.options : ["", "", "", ""],
               correct_index: q.correct_index,
               explanation: q.explanation ?? "",
-              sectionId: (q as any).section_id ?? undefined,
+              sectionId: String((q as any).section_id ?? sections[0]?.id ?? "section-default"),
             }))
           : [emptyDraft()],
       );
@@ -376,7 +376,7 @@ function AdminDashboard() {
 
   const deleteTest = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("tests").delete().eq("id", id);
+      const { error } = await (supabase as any).from("tests").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -425,76 +425,92 @@ function AdminDashboard() {
 
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
-      const normalizedRows = rows.map((row) =>
-        Object.fromEntries(
-          Object.entries(row).map(([key, value]) => [
-            key.trim().toLowerCase(),
-            String(value ?? "").trim(),
-          ]),
-        ),
-      );
-      const invalidRows: number[] = [];
-      const parsedQuestions = normalizedRows.flatMap((row, index) => {
-        const options = [row.option_a, row.option_b, row.option_c, row.option_d];
-        if (!row.question_text || options.some((option) => !option) || !row.correct_answer) {
-          invalidRows.push(index + 2);
-          return [];
-        }
+      const sheetName = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames[0] : null;
+      if (!sheetName) throw new Error("No sheet found in uploaded file.");
 
-        const answer = row.correct_answer.toLowerCase();
-        const letterIndex = ["a", "b", "c", "d"].indexOf(answer.replace(/[^a-d]/g, ""));
-        const numericIndex = Number(answer) - 1;
-        const textIndex = options.findIndex((option) => option.toLowerCase() === answer);
-        const correctIndex =
-          letterIndex >= 0
-            ? letterIndex
-            : numericIndex >= 0 && numericIndex < 4
-              ? numericIndex
-              : textIndex;
-        if (correctIndex < 0 || correctIndex > 3) {
-          invalidRows.push(index + 2);
-          return [];
-        }
+      const firstSheet = workbook.Sheets[sheetName];
+      if (!firstSheet) throw new Error("Could not read worksheet.");
 
-        const sectionName = row.section || sections[0]?.name || "Default";
-        const section = sections.find(
-          (item) =>
-            item.id === sectionName || item.name.trim().toLowerCase() === sectionName.toLowerCase(),
-        );
-        return [
-          {
-            test_id: editingId,
-            position: questions.length + index + 1,
-            body: row.question_text,
-            options,
-            correct_index: correctIndex,
-            explanation: row.explanation || "",
-            section_id: section?.id ?? sections[0]?.id,
-          },
-        ];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, { defval: "" });
+      const normalizedRows: Record<string, string>[] = rawRows.map((row) => {
+        const out: Record<string, string> = {};
+        for (const key of Object.keys(row || {})) {
+          out[key.trim().toLowerCase()] = String(row[key] ?? "").trim();
+        }
+        return out;
       });
 
-      if (invalidRows.length) {
-        throw new Error(
-          `Invalid required fields or correct answer in row(s): ${invalidRows.join(", ")}`,
-        );
-      }
-      if (!parsedQuestions.length) throw new Error("The file contains no question rows.");
+      const invalidRows: number[] = [];
+      const parsedQuestions: any[] = [];
 
-      const { error } = await supabase.from("questions").insert(parsedQuestions);
+      normalizedRows.forEach((row, index) => {
+        const optA = String(row["option_a"] ?? "");
+        const optB = String(row["option_b"] ?? "");
+        const optC = String(row["option_c"] ?? "");
+        const optD = String(row["option_d"] ?? "");
+        const qText = String(row["question_text"] ?? "");
+        const rawAns = String(row["correct_answer"] ?? "").toLowerCase().trim();
+        const options: string[] = [optA, optB, optC, optD];
+
+        if (!qText || !optA || !optB || !optC || !optD || !rawAns) {
+          invalidRows.push(index + 2);
+          return;
+        }
+
+        const cleanAns = rawAns.replace(/[^a-d1-4]/g, "");
+        let correctIndex = -1;
+
+        if (cleanAns === "a" || cleanAns === "1") correctIndex = 0;
+        else if (cleanAns === "b" || cleanAns === "2") correctIndex = 1;
+        else if (cleanAns === "c" || cleanAns === "3") correctIndex = 2;
+        else if (cleanAns === "d" || cleanAns === "4") correctIndex = 3;
+        else correctIndex = options.findIndex((opt) => opt.toLowerCase().trim() === rawAns);
+
+        if (correctIndex < 0 || correctIndex > 3) {
+          invalidRows.push(index + 2);
+          return;
+        }
+
+        const sectionName = String(row["section"] ?? "").trim();
+        const matchedSection = sections.find(
+          (s: any) =>
+            s.id === sectionName ||
+            String(s.name ?? "").toLowerCase() === sectionName.toLowerCase(),
+        );
+
+        parsedQuestions.push({
+          test_id: editingId,
+          position: questions.length + parsedQuestions.length + 1,
+          body: qText,
+          options,
+          correct_index: correctIndex,
+          explanation: String(row["explanation"] ?? ""),
+          section_id: matchedSection?.id ?? sections[0]?.id ?? "section-default",
+        });
+      });
+
+      if (invalidRows.length > 0) {
+        throw new Error(`Invalid required fields in row(s): ${invalidRows.join(", ")}`);
+      }
+
+      if (parsedQuestions.length === 0) {
+        throw new Error("The file contains no question rows.");
+      }
+
+      const { error } = await (supabase as any).from("questions").insert(parsedQuestions);
       if (error) throw error;
+
       setQuestions((previous) => [
-        ...previous.filter((question) => question.body.trim()),
-        ...parsedQuestions.map((question) => ({
-          body: question.body,
-          options: question.options,
-          correct_index: question.correct_index,
-          explanation: question.explanation,
-          sectionId: question.section_id,
+        ...previous.filter((q) => q.body.trim()),
+        ...parsedQuestions.map((q) => ({
+          body: String(q.body),
+          options: (q.options as string[]).map((o) => String(o ?? "")),
+          correct_index: Number(q.correct_index),
+          explanation: String(q.explanation ?? ""),
+          sectionId: String(q.section_id),
         })),
       ]);
+
       qc.invalidateQueries({ queryKey: ["questions", editingId] });
       toast.success(`Successfully imported ${parsedQuestions.length} questions!`);
     } catch (error) {
@@ -991,7 +1007,10 @@ function AdminDashboard() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        setQuestions((prev) => [...prev, { ...emptyDraft(), sectionId: sections[0]?.id }])
+                        setQuestions((prev) => [
+                          ...prev,
+                          { ...emptyDraft(), sectionId: String(sections[0]?.id || "section-default") },
+                        ])
                       }
                       className="w-full text-xs"
                     >
@@ -1137,8 +1156,8 @@ function PackagesManager() {
   const { data: packagesData, refetch: refetchPackages } = useQuery({
     queryKey: ["packages-with-links"],
     queryFn: async () => {
-      const { data: packages } = await supabase.from("test_packages").select("*");
-      const { data: links } = await supabase.from("package_tests").select("*");
+      const { data: packages } = await (supabase as any).from("test_packages").select("*");
+      const { data: links } = await (supabase as any).from("package_tests").select("*");
       return { packages: packages ?? [], links: links ?? [] };
     },
   });
@@ -1155,7 +1174,7 @@ function PackagesManager() {
         is_active: true,
       };
 
-      const { data: pkg, error } = await supabase
+      const { data: pkg, error } = await (supabase as any)
         .from("test_packages")
         .insert(payload)
         .select()
@@ -1164,7 +1183,7 @@ function PackagesManager() {
       const packageId = pkg.id;
       if (pkgSelectedTests.length) {
         const links = pkgSelectedTests.map((tId) => ({ package_id: packageId, test_id: tId }));
-        const { error: linkErr } = await supabase.from("package_tests").insert(links);
+        const { error: linkErr } = await (supabase as any).from("package_tests").insert(links);
         if (linkErr) throw linkErr;
       }
       return pkg;
@@ -1185,12 +1204,12 @@ function PackagesManager() {
 
   const deletePackage = useMutation({
     mutationFn: async (id: string) => {
-      const { error: delLinks } = await supabase
+      const { error: delLinks } = await (supabase as any)
         .from("package_tests")
         .delete()
         .eq("package_id", id);
       if (delLinks) throw delLinks;
-      const { error } = await supabase.from("test_packages").delete().eq("id", id);
+      const { error } = await (supabase as any).from("test_packages").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1364,10 +1383,10 @@ function AdvertisementManager() {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyAd());
-  const { data: ads = [], isLoading } = useQuery({
+  const { data: ads = [] } = useQuery({
     queryKey: ["advertisements", "admin"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("advertisements")
         .select("*")
         .order("display_order", { ascending: true });
@@ -1391,8 +1410,8 @@ function AdvertisementManager() {
         cta_link: form.cta_link.trim(),
       };
       const result = editingId
-        ? await supabase.from("advertisements").update(payload).eq("id", editingId)
-        : await supabase.from("advertisements").insert(payload);
+        ? await (supabase as any).from("advertisements").update(payload).eq("id", editingId)
+        : await (supabase as any).from("advertisements").insert(payload);
       if (result.error) throw result.error;
     },
     onSuccess: () => {
@@ -1406,7 +1425,7 @@ function AdvertisementManager() {
 
   const toggleAd = useMutation({
     mutationFn: async (ad: Advertisement) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("advertisements")
         .update({ is_active: !ad.is_active })
         .eq("id", ad.id);
@@ -1418,7 +1437,7 @@ function AdvertisementManager() {
 
   const deleteAd = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("advertisements").delete().eq("id", id);
+      const { error } = await (supabase as any).from("advertisements").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1583,7 +1602,7 @@ function UserManagement() {
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      let query = supabase
+      let query = (supabase as any)
         .from("profiles")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false });
@@ -1609,7 +1628,7 @@ function UserManagement() {
         setTotalCount(count ?? 0);
 
         try {
-          const { data: attempts } = await supabase.from("attempts").select("user_id");
+          const { data: attempts } = await (supabase as any).from("attempts").select("user_id");
           const attemptsByUser = new Map<string, number>();
           for (const attempt of attempts ?? []) {
             if (attempt.user_id)
@@ -1645,7 +1664,7 @@ function UserManagement() {
       passDuration === "lifetime"
         ? null
         : new Date(Date.now() + Number(passDuration) * 86400000).toISOString();
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("profiles")
       .update({ has_free_pass: passEnabled, free_pass_expires_at: passEnabled ? expiryDate : null })
       .eq("id", userId);
@@ -1661,7 +1680,7 @@ function UserManagement() {
           : user,
       ),
     );
-    await supabase
+    await (supabase as any)
       .from("user_notifications")
       .insert({
         user_id: userId,
@@ -1674,7 +1693,7 @@ function UserManagement() {
   };
 
   const moderateUser = async (user: ManagedUser) => {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("profiles")
       .update({ is_banned: !user.is_banned })
       .eq("id", user.id);
@@ -1691,7 +1710,7 @@ function UserManagement() {
   const deleteUser = async (user: ManagedUser) => {
     if (!window.confirm(`Delete the profile for ${user.full_name || user.email || "this user"}?`))
       return;
-    const { error } = await supabase.from("profiles").delete().eq("id", user.id);
+    const { error } = await (supabase as any).from("profiles").delete().eq("id", user.id);
     if (error) {
       toast.error(error.message);
       return;
@@ -1711,7 +1730,7 @@ function UserManagement() {
     if (action === "notification") {
       if (!title.trim() || !message.trim())
         throw new Error("Notification title and message are required");
-      const { error } = await supabase.from("user_notifications").insert(
+      const { error } = await (supabase as any).from("user_notifications").insert(
         selected.map((user_id) => ({
           user_id,
           title: title.trim(),
@@ -1724,7 +1743,7 @@ function UserManagement() {
       await Promise.all(selected.map((userId) => handleSavePass(userId)));
     } else if (action === "offer") {
       if (!title.trim()) throw new Error("Offer title is required");
-      const { error } = await supabase.from("assigned_offers").insert(
+      const { error } = await (supabase as any).from("assigned_offers").insert(
         selected.map((user_id) => ({
           user_id,
           title: title.trim(),
@@ -1734,7 +1753,7 @@ function UserManagement() {
         })),
       );
       if (error) throw error;
-      await supabase.from("user_notifications").insert(
+      await (supabase as any).from("user_notifications").insert(
         selected.map((user_id) => ({
           user_id,
           title: "New offer available",
@@ -2141,10 +2160,10 @@ type StudyNote = {
 
 function StudyMaterialsManager() {
   const qc = useQueryClient();
-  const { data: notes = [], isLoading } = useQuery({
+  const { data: notes = [] } = useQuery({
     queryKey: ["study-notes"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("study_notes")
         .select("*")
         .order("created_at", { ascending: false });
@@ -2182,8 +2201,8 @@ function StudyMaterialsManager() {
       is_free: isFree,
     };
     const result = editingId
-      ? await supabase.from("study_notes").update(payload).eq("id", editingId)
-      : await supabase.from("study_notes").insert(payload);
+      ? await (supabase as any).from("study_notes").update(payload).eq("id", editingId)
+      : await (supabase as any).from("study_notes").insert(payload);
     if (result.error) {
       toast.error(result.error.message);
       return;

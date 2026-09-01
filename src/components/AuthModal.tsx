@@ -8,17 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { TARGET_EXAM_OPTIONS_WITH_LABELS, DEFAULT_TARGET_EXAM } from '@/constants/exams';
 import { useAuth } from '@/context/AuthContext';
 
-const DEV_OTP = '123456';
 const TARGET_EXAMS = TARGET_EXAM_OPTIONS_WITH_LABELS.map((option) => option.value);
 
 export default function AuthModal() {
-  const { authModalOpen, authModalTab, closeAuthModal, completeDevAuth } = useAuth();
+  const { authModalOpen, authModalTab, closeAuthModal, signInWithPassword, signUpWithPassword } = useAuth();
   const [tab, setTab] = useState<'signin' | 'signup'>(authModalTab);
   const [step, setStep] = useState<1 | 2>(1);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [targetExam, setTargetExam] = useState(DEFAULT_TARGET_EXAM);
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [countdown, setCountdown] = useState(30);
@@ -40,10 +40,6 @@ export default function AuthModal() {
   }, [step]);
 
   useEffect(() => {
-    if (step !== 2 || countdown !== 0) return;
-    if (import.meta.env.DEV) {
-      toast.info(`Dev OTP: ${DEV_OTP}`);
-    }
   }, [countdown, step]);
 
   const normalizedPhone = useMemo(() => {
@@ -60,9 +56,6 @@ export default function AuthModal() {
 
   const resendOtp = () => {
     setCountdown(30);
-    if (import.meta.env.DEV) {
-      toast.success(`New dev OTP sent: ${DEV_OTP}`);
-    }
   };
 
   const resetState = () => {
@@ -70,6 +63,7 @@ export default function AuthModal() {
     setOtp(Array(6).fill(''));
     setPhone('');
     setEmail('');
+    setPassword('');
     setIdentifier('');
     setFullName('');
     setTargetExam(DEFAULT_TARGET_EXAM);
@@ -80,6 +74,14 @@ export default function AuthModal() {
     if (tab === 'signup') {
       if (!fullName.trim()) {
         toast.error('Please enter your full name.');
+        return;
+      }
+      if (!email.trim() || !email.includes('@')) {
+        toast.error('Please enter a valid email address.');
+        return;
+      }
+      if (password.length < 6) {
+        toast.error('Password must be at least 6 characters.');
         return;
       }
       const digits = phone.replace(/\D/g, '');
@@ -103,10 +105,10 @@ export default function AuthModal() {
         toast.error('Please enter a valid email address.');
         return;
       }
-    }
-
-    if (import.meta.env.DEV) {
-      toast.info(`Dev OTP: ${DEV_OTP}`);
+      if (!isEmail || password.length < 6) {
+        toast.error('Enter your email and a password of at least 6 characters.');
+        return;
+      }
     }
 
     setStep(2);
@@ -141,42 +143,25 @@ export default function AuthModal() {
     }
   };
 
-  const verifyOtp = () => {
+  const verifyOtp = async () => {
     const code = otp.join('');
     if (code.length !== 6) {
       toast.error('Please enter the 6-digit OTP.');
       return;
     }
 
-    if (import.meta.env.DEV && code !== DEV_OTP) {
-      toast.error(`Invalid OTP. Dev mode expects ${DEV_OTP}.`);
-      return;
-    }
-
     setLoading(true);
 
     try {
+      const result = tab === 'signup'
+        ? await signUpWithPassword(email.trim(), password, fullName.trim())
+        : await signInWithPassword(identifier.trim(), password);
+      if (result.error) throw result.error;
+
       if (tab === 'signup') {
-        const cleanedPhone = phone.replace(/\D/g, '').slice(0, 10);
-        const generatedEmail = `${cleanedPhone}@rankdon.local`;
-        const profile = completeDevAuth({
-          email: generatedEmail,
-          phone: `+91${cleanedPhone}`,
-          name: fullName.trim(),
-          targetExam,
-        });
-
-        toast.success(`Welcome aboard, ${profile.name.split(' ')[0]}!`);
+        toast.success(`Welcome aboard, ${fullName.trim().split(' ')[0]}!`);
       } else {
-        const normalizedIdentifier = identifier.trim();
-        const isEmail = /@/.test(normalizedIdentifier);
-        const profile = completeDevAuth({
-          email: isEmail ? normalizedIdentifier : `${normalizedIdentifier.replace(/\D/g, '').slice(-10)}@rankdon.local`,
-          phone: isEmail ? `+91${identifier.replace(/\D/g, '').slice(0, 10)}` : `+91${identifier.replace(/\D/g, '').slice(0, 10)}`,
-          name: isEmail ? normalizedIdentifier.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'Rankdon Learner',
-        });
-
-        toast.success(`Welcome back, ${profile.name.split(' ')[0]}!`);
+        toast.success('Welcome back!');
       }
 
       closeAuthModal();
@@ -236,6 +221,22 @@ export default function AuthModal() {
                   placeholder="Full Name"
                 />
 
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="h-12 rounded-2xl border-slate-700 bg-slate-900/60 text-base text-white placeholder:text-slate-500"
+                  placeholder="Email address"
+                />
+
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-12 rounded-2xl border-slate-700 bg-slate-900/60 text-base text-white placeholder:text-slate-500"
+                  placeholder="Password"
+                />
+
                 <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-2">
                   <div className="flex items-center gap-2">
                     <span className="px-2 text-sm font-medium text-slate-300">+91</span>
@@ -263,17 +264,26 @@ export default function AuthModal() {
                 </Select>
               </>
             ) : (
-              <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-2">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 text-sm font-medium text-slate-300">{identifier.includes('@') ? <Mail className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}</span>
-                  <Input
-                    value={identifier}
-                    onChange={(event) => setIdentifier(event.target.value)}
-                    className="border-0 bg-transparent px-0 text-base text-white placeholder:text-slate-500 focus-visible:ring-0"
-                    placeholder="Mobile number or email"
-                  />
+              <>
+                <div className="rounded-2xl border border-slate-700 bg-slate-900/60 p-2">
+                  <div className="flex items-center gap-2">
+                    <Mail className="mx-2 h-4 w-4 text-slate-300" />
+                    <Input
+                      value={identifier}
+                      onChange={(event) => setIdentifier(event.target.value)}
+                      className="border-0 bg-transparent px-0 text-base text-white placeholder:text-slate-500 focus-visible:ring-0"
+                      placeholder="Email address"
+                    />
+                  </div>
                 </div>
-              </div>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="h-12 rounded-2xl border-slate-700 bg-slate-900/60 text-base text-white placeholder:text-slate-500"
+                  placeholder="Password"
+                />
+              </>
             )}
 
             <Button

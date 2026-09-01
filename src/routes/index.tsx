@@ -1,4 +1,4 @@
-import { toast } from 'sonner';
+import { toast } from "sonner";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "../context/AuthContext";
-import { hasTestSession } from "@/lib/test-session";
 import {
   DEFAULT_ADVERTISEMENTS,
   HeroCarousel,
@@ -146,6 +145,9 @@ function Home() {
   const [activeView, setActiveView] = useState<"home" | "all" | "free" | "packages" | "enrolled">(
     "home",
   );
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"newest" | "duration" | "questions">("newest");
 
   const updateUrlParam = (key: string, value: string) => {
     try {
@@ -154,17 +156,14 @@ function Home() {
       else params.set(key, value);
       const newUrl = `${window.location.pathname}${params.toString() ? "?" + params.toString() : ""}`;
       window.history.replaceState(null, "", newUrl);
-    } catch (e) {
-      // ignore (SSR)
+    } catch {
+      // ignore
     }
   };
 
   const handleSetView = (v: "home" | "all" | "free" | "packages" | "enrolled") => {
-    setActiveView((prev) => {
-      if (prev === v) return prev;
-      updateUrlParam("tab", v === "home" || v === "all" ? "" : v);
-      return v;
-    });
+    setActiveView(v);
+    updateUrlParam("tab", v === "home" || v === "all" ? "" : v);
   };
 
   const showPackages = () => {
@@ -175,19 +174,13 @@ function Home() {
   };
 
   const handleSetCategory = (cat: string) => {
-    setActiveCategory((prev) => {
-      if (prev === cat) return prev;
-      updateUrlParam("category", cat === "All" ? "" : cat);
-      return cat;
-    });
+    setActiveCategory(cat);
+    updateUrlParam("category", cat === "All" ? "" : cat);
   };
 
   const handleSetSearch = (q: string) => {
-    setSearch((prev) => {
-      if (prev === q) return prev;
-      updateUrlParam("q", q);
-      return q;
-    });
+    setSearch(q);
+    updateUrlParam("q", q);
   };
 
   useEffect(() => {
@@ -207,7 +200,7 @@ function Home() {
       }
       setActiveCategory(currentCategory);
       setSearch(currentQ);
-    } catch (e) {
+    } catch {
       // ignore
     }
     const onPop = () => {
@@ -216,10 +209,10 @@ function Home() {
         const t = params.get("tab") || "home";
         const c = params.get("category") || "All";
         const q = params.get("q") || "";
-        setActiveView((prev) => (prev === t ? prev : (t as any)));
-        setActiveCategory((prev) => (prev === c ? prev : c));
-        setSearch((prev) => (prev === q ? prev : q));
-      } catch (e) {
+        setActiveView(t as any);
+        setActiveCategory(c);
+        setSearch(q);
+      } catch {
         // ignore
       }
     };
@@ -227,7 +220,7 @@ function Home() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const { user, session, profile, openAuthModal } = useAuth();
+  const { user, profile, openAuthModal } = useAuth();
 
   const getItemPayableAmount = (item: any): number => {
     if (!item) return 99;
@@ -250,25 +243,8 @@ function Home() {
     return Number(item.price ?? 99);
   };
 
-const candidateUserIds = useMemo(() => {
-    // If not logged in, return an empty array so no purchases are fetched
-    if (!user && !profile && !session) return [];
-
-    const ids = new Set<string>();
-    if (user?.id) ids.add(String(user.id));
-    if ((user as any)?.roll_number) ids.add(String((user as any).roll_number));
-    if ((user as any)?.student_id) ids.add(String((user as any).student_id));
-    if ((user as any)?.email) ids.add(String((user as any).email));
-    if ((user as any)?.name) ids.add(String((user as any).name));
-    if ((user as any)?.full_name) ids.add(String((user as any).full_name));
-    if (session?.user?.id) ids.add(String(session.user.id));
-    if (profile?.id) ids.add(String(profile.id));
-    if ((profile as any)?.roll_number) ids.add(String((profile as any).roll_number));
-
-    return Array.from(ids).filter(Boolean);
-  }, [user, session, profile]);
-
   const resolvedUserId = user?.id && isSupabaseUserId(user.id) ? user.id : null;
+
   const { data: databaseProfile } = useQuery({
     queryKey: ["profile-access", resolvedUserId],
     enabled: Boolean(resolvedUserId),
@@ -287,25 +263,23 @@ const candidateUserIds = useMemo(() => {
   const hasFreePass = Boolean(
     (databaseProfile?.has_free_pass ?? profile?.has_free_pass) &&
       (!(databaseProfile?.free_pass_expires_at ?? profile?.free_pass_expires_at) ||
-        new Date(databaseProfile?.free_pass_expires_at ?? profile?.free_pass_expires_at!).getTime() >
-          Date.now()),
+        new Date(
+          databaseProfile?.free_pass_expires_at ?? profile?.free_pass_expires_at!,
+        ).getTime() > Date.now()),
   );
 
   const { data: userPurchases = [], refetch: refetchPurchases } = useQuery({
-    queryKey: ["user-purchases", candidateUserIds],
+    queryKey: ["user-purchases", resolvedUserId],
     queryFn: async () => {
-      if (candidateUserIds.length === 0) return [];
+      if (!resolvedUserId) return [];
       const { data, error } = await supabase
         .from("user_purchases")
         .select("*")
-        .in("user_id", candidateUserIds);
-      if (error) {
-        console.warn("Error fetching user purchases:", error);
-        return [];
-      }
-      return (data ?? []) as any[];
+        .eq("user_id", resolvedUserId);
+      if (error) throw error;
+      return data ?? [];
     },
-    enabled: candidateUserIds.length > 0,
+    enabled: true,
   });
 
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -316,23 +290,19 @@ const candidateUserIds = useMemo(() => {
   const [packageViewerOpen, setPackageViewerOpen] = useState(false);
   const [packageViewerPackage, setPackageViewerPackage] = useState<any>(null);
 
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"newest" | "duration" | "questions">("newest");
-
   const { data: myAttempts = [] } = useQuery({
-    queryKey: ["my-attempts", candidateUserIds],
+    queryKey: ["my-attempts", resolvedUserId],
     queryFn: async () => {
-      if (candidateUserIds.length === 0) return [];
+      if (!resolvedUserId) return [];
       const { data, error } = await supabase
         .from("attempts")
         .select("*")
-        .in("user_id", candidateUserIds)
+        .eq("user_id", resolvedUserId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as any[];
     },
-    enabled: candidateUserIds.length > 0,
+    enabled: Boolean(resolvedUserId),
   });
 
   const categories = ["All", ...Array.from(new Set((tests ?? []).map((t) => t.category)))];
@@ -344,14 +314,13 @@ const candidateUserIds = useMemo(() => {
     return { ...p, includedTests: included };
   });
 
-  // derive purchased IDs and unlocked test IDs
   const { purchasedTestIds, purchasedPackageIds, unlockedIds, packageTestIds } = useMemo(() => {
     const purchased = (userPurchases ?? []).filter(
-      (up: any) => !up.status || up.status === "completed" || up.payment_status === "completed"
+      (up: any) => !up.status || up.status === "completed" || up.payment_status === "completed",
     );
 
-    const purchasedTestIds: string[] = [];
-    const purchasedPackageIds: string[] = [];
+    const pTestIds: string[] = [];
+    const pPackageIds: string[] = [];
 
     purchased.forEach((up: any) => {
       const type = String(up["item_type"] || "");
@@ -360,31 +329,31 @@ const candidateUserIds = useMemo(() => {
       const packageId = String(up["package_id"] || "");
 
       if (type === "package" || packageId) {
-        if (itemId) purchasedPackageIds.push(itemId);
-        if (packageId) purchasedPackageIds.push(packageId);
+        if (itemId) pPackageIds.push(itemId);
+        if (packageId) pPackageIds.push(packageId);
       } else {
-        if (itemId) purchasedTestIds.push(itemId);
-        if (testId) purchasedTestIds.push(testId);
+        if (itemId) pTestIds.push(itemId);
+        if (testId) pTestIds.push(testId);
       }
     });
 
-    const packageTestIds = (packageTests ?? []).map((pt: any) => pt.test_id);
-    
+    const pkgTestIds = (packageTests ?? []).map((pt: any) => pt.test_id);
+
     const unlockedFromPackages = (packageTests ?? [])
-      .filter((pt: any) => purchasedPackageIds.includes(String(pt.package_id)))
+      .filter((pt: any) => pPackageIds.includes(String(pt.package_id)))
       .map((pt: any) => String(pt.test_id));
 
     const unlockedSet = new Set<string>([
-      ...purchasedTestIds.map((id) => String(id)),
+      ...pTestIds.map((id) => String(id)),
       ...unlockedFromPackages,
       ...(hasFreePass ? (tests ?? []).map((test) => String(test.id)) : []),
     ]);
 
-    return { 
-      purchasedTestIds, 
-      purchasedPackageIds, 
-      unlockedIds: unlockedSet, 
-      packageTestIds 
+    return {
+      purchasedTestIds: pTestIds,
+      purchasedPackageIds: pPackageIds,
+      unlockedIds: unlockedSet,
+      packageTestIds: pkgTestIds,
     };
   }, [hasFreePass, packageTests, tests, userPurchases]);
 
@@ -408,15 +377,10 @@ const candidateUserIds = useMemo(() => {
     });
   };
 
-const isTestUnlocked = (testItem: any): boolean => {
+  const isTestUnlocked = (testItem: any): boolean => {
     if (!testItem) return false;
-    
-    // Free tests are always unlocked for everyone
     if (testItem.is_free === true || Number(testItem.price ?? 0) === 0) return true;
-
-    // Paid tests REQUIRE user to be logged in
-    if (!user && !profile && !session) return false;
-
+    if (!user) return false;
     if (hasFreePass) return true;
 
     const targetId = String(testItem.id);
@@ -448,48 +412,13 @@ const isTestUnlocked = (testItem: any): boolean => {
       setIsPaymentLoading(true);
       const effectiveAmount = Number(amount || getItemPayableAmount(purchaseItem) || 99);
 
-      let activeUser = (user as any) || (session as any)?.user || (profile as any);
-
-      if (!activeUser) {
-        const {
-          data: { user: sbUser },
-        } = await supabase.auth.getUser();
-        activeUser = sbUser;
+      if (!user?.id || !isSupabaseUserId(user.id)) {
+        throw new Error("Please sign in before completing a purchase.");
       }
-
-      if (!activeUser) {
-        const storedUser =
-          localStorage.getItem("rankdon_user") ||
-          localStorage.getItem("user_profile") ||
-          localStorage.getItem("auth_user");
-
-        if (storedUser) {
-          try {
-            const parsedStoredUser = JSON.parse(storedUser);
-            activeUser = parsedStoredUser?.user ?? parsedStoredUser?.profile ?? parsedStoredUser;
-          } catch (e) {
-            console.warn("Unable to parse stored user session.", e);
-          }
-        }
-      }
-
-      const activeUserId =
-        (user?.id && isSupabaseUserId(user.id) ? user.id : null) ||
-        (session?.user?.id && isSupabaseUserId(session.user.id) ? session.user.id : null) ||
-        (profile?.id && isSupabaseUserId(profile.id) ? profile.id : null) ||
-        (activeUser?.id ? String(activeUser.id) : null) ||
-        (activeUser?.roll_number ? String(activeUser.roll_number) : null) ||
-        (activeUser?.student_id ? String(activeUser.student_id) : null) ||
-        (activeUser?.email ? String(activeUser.email) : "RD-2026-7200");
-
-      const activeUserName =
-        activeUser?.full_name ||
-        activeUser?.name ||
-        activeUser?.user_metadata?.full_name ||
-        activeUser?.profile?.full_name ||
-        "Rankdon Learner";
-      const activeUserEmail = activeUser?.email || activeUser?.user_email || "";
-      const activeUserPhone = activeUser?.phone || activeUser?.contact || activeUser?.mobile || "";
+      const activeUserId = user.id;
+      const activeUserName = user.user_metadata?.full_name || profile?.full_name || "";
+      const activeUserEmail = user.email || "";
+      const activeUserPhone = user.phone || (profile as any)?.phone || "";
 
       const targetItemId = purchaseItem.id ? String(purchaseItem.id) : null;
       if (!targetItemId) {
@@ -531,7 +460,7 @@ const isTestUnlocked = (testItem: any): boolean => {
           const currentItemType = isPackage ? "package" : "test";
           const currentItemId = String(purchaseItem.id);
 
-          const purchaseRecord: Record<string, any> = {
+          const { error } = await (supabase as any).from("user_purchases").insert({
             user_id: activeUserId,
             item_type: currentItemType,
             item_id: currentItemId,
@@ -540,9 +469,7 @@ const isTestUnlocked = (testItem: any): boolean => {
             status: "completed",
             test_id: isPackage ? null : currentItemId,
             package_id: isPackage ? currentItemId : null,
-          };
-
-          const { error } = await supabase.from("user_purchases").insert(purchaseRecord);
+          });
 
           if (error) {
             console.error("Supabase insert error details:", error);
@@ -585,10 +512,7 @@ const isTestUnlocked = (testItem: any): boolean => {
       {/* Purchase modal */}
       {(purchaseModalOpen || isUnlockModalOpen) && purchaseItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={closePurchaseModal}
-          />
+          <div className="absolute inset-0 bg-black/50" onClick={closePurchaseModal} />
           <div className="relative z-10 w-full max-w-md rounded-lg bg-white p-6">
             <h3 className="font-display text-lg font-semibold">
               Unlock {purchaseItemType === "test" ? "Test" : "Series"}
@@ -627,10 +551,7 @@ const isTestUnlocked = (testItem: any): boolean => {
       {/* Package viewer modal */}
       {packageViewerOpen && packageViewerPackage && (
         <div className="fixed inset-0 z-50 flex items-center justify-end">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setPackageViewerOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPackageViewerOpen(false)} />
           <div className="relative z-10 w-full max-w-2xl h-full bg-white p-6 overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-semibold">
@@ -877,13 +798,14 @@ const isTestUnlocked = (testItem: any): boolean => {
                 Available mock tests
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Pick a paper and start whenever you're ready. The timer starts on the first
-                question.
+                Pick a paper and start whenever you're ready. The timer starts on the first question.
               </p>
 
               <div className="mt-4 flex items-center justify-between gap-4">
                 <div className="flex-1">
                   <input
+                    id="search-input"
+                    name="search-input"
                     aria-label="Search tests"
                     value={search}
                     onChange={(e) => handleSetSearch(e.target.value)}
@@ -892,14 +814,17 @@ const isTestUnlocked = (testItem: any): boolean => {
                         ? "Search packages by title or category"
                         : "Search by title, subject or category"
                     }
-                    className="w-full h-10 text-xs rounded-xl border-slate-200 bg-white shadow-sm px-3"
+                    className="w-full h-10 text-xs rounded-xl border border-slate-200 bg-white shadow-sm px-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div className="w-44">
                   <select
+                    id="sort-select"
+                    name="sort-select"
+                    aria-label="Sort tests"
                     value={sort}
                     onChange={(e) => setSort(e.target.value as any)}
-                    className="w-full h-10 text-xs rounded-xl border-slate-200 bg-white shadow-sm px-3"
+                    className="w-full h-10 text-xs rounded-xl border border-slate-200 bg-white shadow-sm px-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="newest">Newest First</option>
                     <option value="duration">Duration (Low to High)</option>
@@ -1026,7 +951,7 @@ const isTestUnlocked = (testItem: any): boolean => {
                         const userAttemptCount = (myAttempts ?? []).filter(
                           (a: any) => a.test_id === t.id,
                         ).length;
-                        const hasSavedSession = Boolean(user) && hasTestSession(t.id, resolvedUserId);
+                        const hasSavedSession = false;
                         const attemptLimit = t.max_attempts || 1;
                         const limitReached = Boolean(t.max_attempts && userAttemptCount >= attemptLimit);
                         const canAccessPaidTest = bought && !limitReached;
@@ -1247,7 +1172,7 @@ const isTestUnlocked = (testItem: any): boolean => {
                       const isPackageOnly = accessType === "package_only";
                       const isPaid = accessType === "paid";
                       const purchased = isTestUnlocked(t);
-                      const hasSavedSession = Boolean(user) && hasTestSession(t.id, resolvedUserId);
+                      const hasSavedSession = false;
                       return (
                         <article
                           key={t.id}
