@@ -17,8 +17,11 @@ type AuthContextValue = {
     email: string,
     password: string,
     fullName: string,
+    phone: string,
+    targetExam: string,
   ) => Promise<{ error: any }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<UserProfile>;
+  refreshProfile: () => Promise<UserProfile | null>;
   signOut: () => Promise<void>;
   openAuthModal: (mode?: AuthModalTab) => void;
   closeAuthModal: () => void;
@@ -102,7 +105,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user?.email, user?.id]);
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
+  const refreshProfile = async () => {
+    if (!user?.id || !isSupabaseUserId(user.id)) return null;
+    const { data, error } = await (supabase as any)
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      setProfile(null);
+      return null;
+    }
+    const email = user.email ?? data["email"] ?? "";
+    const defaults = getDefaultProfile(email);
+    const nextProfile: UserProfile = {
+      ...defaults,
+      ...data,
+      id: user.id,
+      email,
+      name: data["full_name"] ?? defaults.name,
+      full_name: data["full_name"] ?? "",
+      phone: data["phone"] ?? defaults.phone,
+      targetExam: data["target_exam"] ?? defaults.targetExam,
+      state: data["state"] ?? defaults.state,
+      city: data["city"] ?? defaults.city,
+      avatarUrl: data["avatar_url"] ?? defaults.avatarUrl,
+      joinedDate: data["joined_at"] ?? data["created_at"] ?? defaults.joinedDate,
+    };
+    setProfile(nextProfile);
+    return nextProfile;
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>): Promise<UserProfile> => {
     if (!user?.id || !isSupabaseUserId(user.id)) {
       throw new Error("You must be signed in to update your profile.");
     }
@@ -114,15 +149,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: user.id,
         full_name: updatedName ?? "",
         email,
+        phone: updates.phone ?? null,
+        target_exam: updates.targetExam ?? null,
+        state: updates.state ?? null,
+        city: updates.city ?? null,
+        avatar_url: updates.avatarUrl ?? null,
         updated_at: new Date().toISOString(),
       })
       .select()
       .single();
     if (error) throw error;
-    const nextProfile = { ...(data as UserProfile), name: data.full_name ?? "", email };
-    setProfile(nextProfile);
-
-    return nextProfile;
+    const refreshedProfile = await refreshProfile();
+    if (!refreshedProfile) throw new Error("Profile could not be reloaded after saving.");
+    return refreshedProfile;
   };
 
   const signInWithPassword = async (email: string, password: string) => {
@@ -130,13 +169,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: res.error };
   };
 
-  const signUpWithPassword = async (email: string, password: string, fullName: string) => {
-    const res = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+  const signUpWithPassword = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone: string,
+    targetExam: string,
+  ) => {
+    const res = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName, phone, target_exam: targetExam } },
+    });
     if (!res.error && res.data.user) {
       const { error } = await (supabase as any).from("profiles").upsert({
         id: res.data.user.id,
         full_name: fullName,
         email,
+        phone: phone || null,
+        target_exam: targetExam || null,
         updated_at: new Date().toISOString(),
       });
       if (error) return { error };
@@ -198,6 +249,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithPassword,
       signUpWithPassword,
       updateProfile,
+      refreshProfile,
       signOut,
       openAuthModal,
       closeAuthModal,

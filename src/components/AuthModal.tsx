@@ -154,7 +154,7 @@ export default function AuthModal() {
 
     try {
       const result = tab === 'signup'
-        ? await signUpWithPassword(email.trim(), password, fullName.trim())
+        ? await signUpWithPassword(email.trim(), password, fullName.trim(), normalizedPhone, targetExam)
         : await signInWithPassword(identifier.trim(), password);
       if (result.error) throw result.error;
 

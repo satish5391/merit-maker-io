@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, MapPin, Phone, ShieldCheck, TrendingUp, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarDays, Loader2, MapPin, Phone, ShieldCheck, TrendingUp, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DEFAULT_TARGET_EXAM, TARGET_EXAM_OPTIONS_WITH_LABELS } from "@/constants/exams";
 import { useAuth } from "@/context/AuthContext";
-import { getAttemptHistory } from "@/lib/attempt-history";
+import { supabase } from "@/integrations/supabase/client";
 import { getDisplayName, type UserProfile } from "@/lib/user-profile";
+import { useQuery } from "@tanstack/react-query";
 
 export default function ProfilePage() {
-  const { user, profile, updateProfile } = useAuth();
+  const { user, profile, updateProfile, refreshProfile } = useAuth();
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<UserProfile>(profile ?? {
     id: "RD-2026-001",
     name: "",
@@ -35,11 +37,43 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
-  const history = useMemo(() => getAttemptHistory(), []);
-  const totalTestsAttempted = history.length;
-  const averageAccuracy = totalTestsAttempted > 0 ? history.reduce((sum, item) => sum + Number(item.accuracy || 0), 0) / totalTestsAttempted : 0;
-  const ranked = [...history].sort((a, b) => Number(b.accuracy) - Number(a.accuracy));
-  const overallRank = totalTestsAttempted > 0 ? ranked.findIndex((item) => item.attemptId === ranked[0]?.attemptId) + 1 : "Unranked";
+  const { data: userAttempts = [] } = useQuery({
+    queryKey: ["user-attempts-stats", user?.id],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("attempts")
+        .select("id, score, max_score, accuracy, correct_count, wrong_count")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: allCompletedAttempts = [] } = useQuery({
+    queryKey: ["all-completed-attempts-stats"],
+    enabled: Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("attempts")
+        .select("id, user_id, score, status")
+        .eq("status", "completed")
+        .order("score", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const totalTestsAttempted = userAttempts.length;
+  const averageAccuracy = totalTestsAttempted > 0
+    ? userAttempts.reduce((sum: number, item: any) => sum + Number(item.accuracy || 0), 0) / totalTestsAttempted
+    : 0;
+  const bestAttempt = [...userAttempts].sort((a: any, b: any) => Number(b.score) - Number(a.score))[0];
+  const rankedScores = [...allCompletedAttempts].sort((a: any, b: any) => Number(b.score) - Number(a.score));
+  const bestRank = bestAttempt
+    ? rankedScores.findIndex((item: any) => item.id === bestAttempt.id) + 1
+    : 0;
+  const overallRank = bestRank || "Unranked";
 
   if (!user) {
     return (
@@ -63,17 +97,53 @@ export default function ProfilePage() {
         : "Free Plan";
 
   const handleSave = async () => {
-    const sanitizedName = form.name.trim() || getDisplayName(undefined, user.email);
-    const nextProfile = await updateProfile({
-      ...form,
-      name: sanitizedName,
-      email: user.email ?? form.email,
-      phone: form.phone.trim() || "+91 ",
-      state: form.state.trim(),
-      city: form.city.trim(),
-    });
-    setForm(nextProfile);
-    toast.success("Profile updated successfully.");
+    setSaving(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const activeUserId = session?.user?.id || user?.id;
+
+      if (!activeUserId) {
+        toast.error("Please sign in to update your profile.");
+        return;
+      }
+
+      const safeName = (form.name ?? "").trim();
+      const safePhone = (form.phone ?? "").trim();
+      const safeTargetExam = (form.targetExam ?? "").trim();
+      const safeState = (form.state ?? "").trim();
+      const safeCity = (form.city ?? "").trim();
+
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .upsert({
+          id: activeUserId,
+          full_name: safeName || null,
+          phone: safePhone || null,
+          target_exam: safeTargetExam || null,
+          state: safeState || null,
+          city: safeCity || null,
+          email: session?.user?.email || user?.email || null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+
+      if (error) {
+        console.error("Profile save error:", error);
+        toast.error(error.message || "Failed to update profile");
+        return;
+      }
+
+      const refreshed = await refreshProfile?.();
+      if (refreshed) setForm(refreshed);
+      toast.success("Profile updated successfully!");
+    } catch (error) {
+      console.error("Profile save error:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const initials = (form.name || user.email || "Student").split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -268,8 +338,9 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleSave} className="min-w-[200px]">
-                Save Profile Changes
+              <Button onClick={handleSave} className="min-w-[200px]" disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {saving ? "Saving..." : "Save Profile Changes"}
               </Button>
             </div>
           </CardContent>
