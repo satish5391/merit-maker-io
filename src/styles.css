@@ -157,3 +157,28 @@
     color: var(--color-foreground);
   }
 }
+
+
+
+
+
+
+
+
+/* Slim, dark custom scrollbar for the sidebar */
+aside::-webkit-scrollbar {
+  width: 5px;
+}
+
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside::-webkit-scrollbar-thumb {
+  background-color: #2b323c;
+  border-radius: 9999px;
+}
+
+aside::-webkit-scrollbar-thumb:hover {
+  background-color: #3b4452;
+}

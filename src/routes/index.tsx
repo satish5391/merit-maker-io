@@ -508,7 +508,7 @@ function Home() {
   };
 
   return (
-    <div className="bg-[#f8fafc]">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#f8fafc]">
       {/* Purchase modal */}
       {(purchaseModalOpen || isUnlockModalOpen) && purchaseItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -594,120 +594,123 @@ function Home() {
       )}
 
       {activeView === "home" && <PromoStrip ads={advertisements} />}
-      <main id="tests" className="flex min-h-[calc(100vh-64px)] flex-col overflow-x-hidden md:flex-row">
+      
+      <div id="tests" className="flex flex-1 min-h-0 w-full flex-col overflow-hidden md:flex-row">
         {/* Left sidebar */}
-        <aside className="hidden flex-shrink-0 border-r border-[#262c35] bg-[#161a1e] p-3 md:flex md:w-64 md:flex-col md:justify-between md:overflow-y-auto">
-          <div className="px-3 py-4 flex justify-center items-center border-b border-slate-800/60 mb-2">
-            <Link to="/" aria-label="Rankdon home" className="block w-full">
-              <img
-                src="/logo.png"
-                alt="Rankdon"
-                className="w-full max-w-[190px] h-auto object-contain mx-auto rounded-xl block"
-              />
-            </Link>
+        <aside className="hidden md:flex w-64 shrink-0 flex-col justify-between h-full overflow-y-auto border-r border-[#262c35] bg-[#161a1e] p-3">
+          <div>
+            <div className="px-3 py-4 flex justify-center items-center border-b border-slate-800/60 mb-2">
+              <Link to="/" aria-label="Rankdon home" className="block w-full">
+                <img
+                  src="/logo.png"
+                  alt="Rankdon"
+                  className="w-full max-w-[190px] h-auto object-contain mx-auto rounded-xl block"
+                />
+              </Link>
+            </div>
+            <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3 pt-3 pb-1">
+              TESTS
+            </div>
+            <nav className="mt-2 flex flex-col gap-1">
+              <button
+                onClick={() => handleSetView("home")}
+                className={
+                  activeView === "home"
+                    ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+                }
+              >
+                <Sparkles className="size-4" />
+                <span>Home</span>
+              </button>
+
+              <button
+                onClick={() => handleSetView("all")}
+                className={
+                  activeView === "all"
+                    ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+                }
+              >
+                <FileText className="size-4" />
+                <span>All Tests</span>
+              </button>
+
+              <button
+                onClick={() => handleSetView("free")}
+                className={
+                  activeView === "free"
+                    ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+                }
+              >
+                <Star className="size-4" />
+                <span>Free Mock Tests</span>
+              </button>
+
+              <Link
+                to="/live-tests"
+                className="text-slate-400 hover:text-white hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+              >
+                <span className="relative">
+                  <Radio className="size-4 text-rose-400" />
+                  <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-emerald-400 ring-2 ring-[#161a1e]" />
+                </span>
+                <span>Live Tests</span>
+              </Link>
+
+              <button
+                onClick={() => handleSetView("packages")}
+                className={
+                  activeView === "packages"
+                    ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+                }
+              >
+                <Trophy className="size-4" />
+                <span>Test Series &amp; Combos</span>
+              </button>
+
+              <button
+                onClick={() => handleSetView("enrolled")}
+                className={
+                  activeView === "enrolled"
+                    ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+                }
+              >
+                <ShoppingBag className="size-4" />
+                <span>My Enrolled / Purchased</span>
+              </button>
+            </nav>
+            <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3 pt-3 pb-1 mt-4">
+              STUDY MATERIAL
+            </div>
+            <nav className="mt-2 flex flex-col gap-1">
+              <Link
+                to="/attempted-tests"
+                className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+              >
+                <History className="size-4" />
+                <span>Attempted Tests</span>
+              </Link>
+
+              <Link
+                to="/notes"
+                className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
+              >
+                <BookOpen className="size-4" />
+                <span>Study Notes</span>
+                <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                  NEW
+                </span>
+              </Link>
+            </nav>
           </div>
-          <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3 pt-3 pb-1">
-            TESTS
-          </div>
-          <nav className="mt-2 flex flex-col gap-1">
-            <button
-              onClick={() => handleSetView("home")}
-              className={
-                activeView === "home"
-                  ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-              }
-            >
-              <Sparkles className="size-4" />
-              <span>Home</span>
-            </button>
-
-            <button
-              onClick={() => handleSetView("all")}
-              className={
-                activeView === "all"
-                  ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-              }
-            >
-              <FileText className="size-4" />
-              <span>All Tests</span>
-            </button>
-
-            <button
-              onClick={() => handleSetView("free")}
-              className={
-                activeView === "free"
-                  ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-              }
-            >
-              <Star className="size-4" />
-              <span>Free Mock Tests</span>
-            </button>
-
-            <Link
-              to="/live-tests"
-              className="text-slate-400 hover:text-white hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-            >
-              <span className="relative">
-                <Radio className="size-4 text-rose-400" />
-                <span className="absolute -right-1 -top-1 size-1.5 animate-pulse rounded-full bg-emerald-400 ring-2 ring-[#161a1e]" />
-              </span>
-              <span>Live Tests</span>
-            </Link>
-
-            <button
-              onClick={() => handleSetView("packages")}
-              className={
-                activeView === "packages"
-                  ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-              }
-            >
-              <Trophy className="size-4" />
-              <span>Test Series &amp; Combos</span>
-            </button>
-
-            <button
-              onClick={() => handleSetView("enrolled")}
-              className={
-                activeView === "enrolled"
-                  ? "bg-[#222831] text-cyan-400 font-semibold border-l-[3px] border-cyan-400 rounded-r-lg px-3 py-2 text-xs flex items-center gap-3"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-              }
-            >
-              <ShoppingBag className="size-4" />
-              <span>My Enrolled / Purchased</span>
-            </button>
-          </nav>
-          <div className="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-3 pt-3 pb-1 mt-4">
-            STUDY MATERIAL
-          </div>
-          <nav className="mt-2 flex flex-col gap-1">
-            <Link
-              to="/attempted-tests"
-              className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-            >
-              <History className="size-4" />
-              <span>Attempted Tests</span>
-            </Link>
-
-            <Link
-              to="/notes"
-              className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
-            >
-              <BookOpen className="size-4" />
-              <span>Study Notes</span>
-              <span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                NEW
-              </span>
-            </Link>
-          </nav>
         </aside>
 
-        {/* Right content */}
-        <div className="min-w-0 flex-1 overflow-y-auto bg-[#f8fafc] p-4 md:p-8">
+        {/* Right content with independent scroller */}
+        <main className="flex-1 min-w-0 h-full overflow-y-auto bg-[#f8fafc] p-4 md:p-8">
           {activeView === "home" ? (
             <section className="space-y-8">
               <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_270px]">
@@ -1278,8 +1281,8 @@ function Home() {
               </div>
             </>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
