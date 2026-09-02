@@ -117,8 +117,42 @@ function formatClock(seconds: number) {
   return `${Math.floor(safe / 60)}m ${String(safe % 60).padStart(2, "0")}s`;
 }
 
+function cleanDisplayName(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const localPart = text.includes("@") ? (text.split("@")[0] ?? "") : text;
+  return localPart
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .trim();
+}
+
+function getAttemptDisplayName(row: any, currentUserId?: string | null, currentProfileName?: string | null) {
+  if (currentUserId && row?.user_id === currentUserId && currentProfileName) {
+    return currentProfileName;
+  }
+  return cleanDisplayName(row?.profiles?.full_name || row?.student_name || row?.email) || "Student";
+}
+
+function getSectionIcon(name: string) {
+  const value = name.toLowerCase();
+  if (value.includes("math")) return Calculator;
+  if (value.includes("knowledge") || value.includes("gk") || value.includes("english")) return BookOpen;
+  return Layers;
+}
+
 function ResultPage() {
   const { attemptId } = Route.useParams();
+  const auth = useAuth();
+  const { user, profile } = auth;
+  const supabaseUserId = user?.id && isSupabaseUserId(user.id) ? user.id : null;
+
+  const currentProfileName =
+    (profile as any)?.full_name ||
+    (profile as any)?.name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    "";
 
   // 1. Fetch Attempt
   const {
@@ -150,38 +184,40 @@ function ResultPage() {
     enabled: Boolean(attempt?.test_id),
   });
 
+  // 3. Fetch All Attempts cleanly without failing joins
   const { data: allAttempts = [], isLoading: isLoadingAllAttempts } = useQuery<Attempt[]>({
     queryKey: ["test-attempts-analysis", attempt?.test_id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      const { data: rawAttempts, error } = await (supabase as any)
         .from("attempts")
-        .select("id, user_id, student_name, score, max_score, accuracy, time_taken_seconds, created_at, answers, correct_count, wrong_count, skipped_count, status, profiles(full_name)")
+        .select("id, user_id, student_name, score, max_score, accuracy, time_taken_seconds, created_at, answers, correct_count, wrong_count, skipped_count, status")
         .eq("test_id", attempt!.test_id)
         .order("score", { ascending: false });
+
       if (error) throw error;
-      return (data ?? []) as Attempt[];
+      const list = rawAttempts ?? [];
+
+      // Safe lookup for profile names to avoid Supabase 400 Bad Request joins
+      const userIds = Array.from(new Set(list.map((a: any) => a.user_id).filter(Boolean)));
+      let profileMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: profilesData } = await (supabase as any)
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        if (profilesData) {
+          profileMap = Object.fromEntries(profilesData.map((p: any) => [p.id, p.full_name]));
+        }
+      }
+
+      return list.map((row: any) => ({
+        ...row,
+        profiles: profileMap[row.user_id] ? { full_name: profileMap[row.user_id] } : null,
+      })) as Attempt[];
     },
     enabled: Boolean(attempt?.test_id),
   });
 
-  const { data: topRankers = [], isLoading: isLoadingTopRankers } = useQuery({
-    queryKey: ["top-rankers", attempt?.test_id],
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("attempts")
-        .select("id, user_id, student_name, score, max_score, accuracy, time_taken_seconds, profiles(full_name)")
-        .eq("test_id", attempt!.test_id)
-        .order("score", { ascending: false })
-        .order("time_taken_seconds", { ascending: true })
-        .limit(5);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: Boolean(attempt?.test_id),
-  });
-
-  const { user } = useAuth();
-  const supabaseUserId = user?.id && isSupabaseUserId(user.id) ? user.id : null;
   const [now, setNow] = useState(() => Date.now());
   const [analysisSection, setAnalysisSection] = useState("overall");
 
@@ -251,7 +287,7 @@ function ResultPage() {
         ? sortedScores[Math.floor(sortedScores.length / 2)]
         : (Number(sortedScores[sortedScores.length / 2 - 1] ?? 0) + Number(sortedScores[sortedScores.length / 2] ?? 0)) / 2
       : 0;
-      const average = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+    const average = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
     const bucketSize = 5;
     const bucketCount = Math.max(1, Math.ceil((maxScore || 5) / bucketSize));
     const distribution = Array.from({ length: bucketCount }, (_, index) => {
@@ -288,15 +324,13 @@ function ResultPage() {
     };
   }, [analysisSection, attempt, questions, sections, sortedAttempts, test]);
 
-
   // Loading state
   if (
     isLoadingAttempt ||
     isLoadingTest ||
     isLoadingQuestions ||
     isLoadingQuestionCount ||
-    isLoadingAllAttempts ||
-    isLoadingTopRankers
+    isLoadingAllAttempts
   ) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
@@ -313,7 +347,7 @@ function ResultPage() {
     );
   }
 
-  // Error guard: Ensures attempt and test are non-null below this line
+  // Error guard
   if (isErrorAttempt || isErrorTest || !attempt || !test) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
@@ -352,7 +386,7 @@ function ResultPage() {
         <Badge variant="secondary">Live test submitted</Badge>
         <h1 className="mt-3 font-display text-2xl font-bold md:text-3xl">Submission received</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {test.title} · {getAttemptDisplayName(attempt)}
+          {test.title} · {getAttemptDisplayName(attempt, supabaseUserId, currentProfileName)}
         </p>
         <div className="mt-8 grid gap-6 md:grid-cols-[220px_1fr] md:items-center">
           <div
@@ -431,9 +465,7 @@ function ResultPage() {
     )?.range ?? "0 to 5",
   );
   const median = Number(analysis.median || 0);
-  const displayTopRankers = (topRankers ?? []).length > 0
-    ? topRankers
-    : sortedAttempts.slice(0, 5);
+  const displayTopRankers = sortedAttempts.slice(0, 5);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -442,7 +474,7 @@ function ResultPage() {
         Scorecard — {test.title}
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        {getAttemptDisplayName(allAttempts.find((row) => row.id === attempt.id) ?? attempt)} · finished in {Math.floor(Number(attempt.time_taken_seconds ?? 0) / 60)}m{" "}
+        {getAttemptDisplayName(allAttempts.find((row) => row.id === attempt.id) ?? attempt, supabaseUserId, currentProfileName)} · finished in {Math.floor(Number(attempt.time_taken_seconds ?? 0) / 60)}m{" "}
         {Number(attempt.time_taken_seconds ?? 0) % 60}s
       </p>
 
@@ -510,22 +542,20 @@ function ResultPage() {
             </div>
           </div>
           <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {analysisSections.map((section) => (
-              (() => {
-                const Icon = section.id === "overall" ? Layers : getSectionIcon(section.name);
-                return (
-              <button
-                key={section.id}
-                type="button"
-                onClick={() => setAnalysisSection(section.id)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${analysisSection === section.id ? "border-blue-500 bg-blue-600 text-white shadow-sm ring-1 ring-blue-500" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-              >
-                <Icon className="size-4" />
-                {section.name}
-              </button>
-                );
-              })()
-            ))}
+            {analysisSections.map((section) => {
+              const Icon = section.id === "overall" ? Layers : getSectionIcon(section.name);
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => setAnalysisSection(section.id)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${analysisSection === section.id ? "border-blue-500 bg-blue-600 text-white shadow-sm ring-1 ring-blue-500" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                >
+                  <Icon className="size-4" />
+                  {section.name}
+                </button>
+              );
+            })}
           </div>
           <div className="mt-4 h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -548,7 +578,7 @@ function ResultPage() {
           <h2 className="font-display text-lg font-semibold">Top Rankers</h2>
           <div className="mt-4 space-y-3">
             {displayTopRankers.map((ranker: any, index: number) => {
-              const name = getAttemptDisplayName(ranker);
+              const name = getAttemptDisplayName(ranker, supabaseUserId, currentProfileName);
               const initials = name.split(/\s+/).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase();
               return (
                 <div key={ranker.id} className="flex items-center gap-3">
@@ -611,25 +641,4 @@ function ResultPage() {
       </div>
     </div>
   );
-}
-
-function cleanDisplayName(value: unknown) {
-  const text = String(value ?? "").trim();
-  if (!text) return "";
-  const localPart = text.includes("@") ? (text.split("@")[0] ?? "") : text;
-  return localPart
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase())
-    .trim();
-}
-
-function getAttemptDisplayName(row: any) {
-  return cleanDisplayName(row?.profiles?.full_name || row?.student_name || row?.email) || "Student";
-}
-
-function getSectionIcon(name: string) {
-  const value = name.toLowerCase();
-  if (value.includes("math")) return Calculator;
-  if (value.includes("knowledge") || value.includes("gk") || value.includes("english")) return BookOpen;
-  return Layers;
 }
