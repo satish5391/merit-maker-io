@@ -314,7 +314,7 @@ function Home() {
     return { ...p, includedTests: included };
   });
 
-  const { purchasedTestIds, purchasedPackageIds, unlockedIds, packageTestIds } = useMemo(() => {
+  const { purchasedPackageIds, unlockedIds } = useMemo(() => {
     const purchased = (userPurchases ?? []).filter(
       (up: any) => !up.status || up.status === "completed" || up.payment_status === "completed",
     );
@@ -613,6 +613,7 @@ function Home() {
             </div>
             <nav className="mt-2 flex flex-col gap-1">
               <button
+                type="button"
                 onClick={() => handleSetView("home")}
                 className={
                   activeView === "home"
@@ -625,6 +626,7 @@ function Home() {
               </button>
 
               <button
+                type="button"
                 onClick={() => handleSetView("all")}
                 className={
                   activeView === "all"
@@ -637,6 +639,7 @@ function Home() {
               </button>
 
               <button
+                type="button"
                 onClick={() => handleSetView("free")}
                 className={
                   activeView === "free"
@@ -650,6 +653,7 @@ function Home() {
 
               <Link
                 to="/live-tests"
+                preload="intent"
                 className="text-slate-400 hover:text-white hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
               >
                 <span className="relative">
@@ -660,6 +664,7 @@ function Home() {
               </Link>
 
               <button
+                type="button"
                 onClick={() => handleSetView("packages")}
                 className={
                   activeView === "packages"
@@ -672,6 +677,7 @@ function Home() {
               </button>
 
               <button
+                type="button"
                 onClick={() => handleSetView("enrolled")}
                 className={
                   activeView === "enrolled"
@@ -689,6 +695,7 @@ function Home() {
             <nav className="mt-2 flex flex-col gap-1">
               <Link
                 to="/attempted-tests"
+                preload="intent"
                 className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
               >
                 <History className="size-4" />
@@ -697,6 +704,7 @@ function Home() {
 
               <Link
                 to="/notes"
+                preload="intent"
                 className="text-slate-400 hover:text-slate-200 hover:bg-[#1e232a] rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-3"
               >
                 <BookOpen className="size-4" />
@@ -860,7 +868,7 @@ function Home() {
                 {isLoading &&
                   [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
 
-                {/* Packages view strictly shows packages */}
+                {/* Packages view */}
                 {activeView === "packages" && (
                   <>
                     {packagesWithMeta
