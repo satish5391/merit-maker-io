@@ -1684,12 +1684,12 @@ function UserManagement() {
       .from("user_notifications")
       .insert({
         user_id: userId,
-        title: passEnabled ? "Free pass granted" : "Free pass revoked",
+        title: passEnabled ? "Pro Pass granted" : "Pro Pass revoked",
         message: passEnabled
           ? "You now have access to all tests and packages."
-          : "Your free pass has been revoked.",
+          : "Your Pro Pass has been revoked.",
       });
-    toast.success(passEnabled ? "Free pass granted" : "Free pass revoked");
+    toast.success(passEnabled ? "Pro Pass granted" : "Pro Pass revoked");
   };
 
   const moderateUser = async (user: ManagedUser) => {
@@ -1775,7 +1775,7 @@ function UserManagement() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-bold text-slate-900">Student & Learner Accounts</h3>
-          <p className="text-xs text-slate-500">Manage user access, grant free passes, send offers, or moderate accounts.</p>
+          <p className="text-xs text-slate-500">Manage user access, grant Pro Passes, send offers, or moderate accounts.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative flex-1 sm:w-72">
@@ -1793,7 +1793,7 @@ function UserManagement() {
             onChange={(event) => setFilterType(event.target.value)}
           >
             <option value="all">All Registered Students</option>
-            <option value="pass">Active Free Pass Holders</option>
+            <option value="pass">Active Pro Pass Holders</option>
           </select>
         </div>
       </div>
@@ -1915,7 +1915,7 @@ function UserManagement() {
                   <td className="p-3.5">
                     {u.has_free_pass ? (
                       <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">
-                        FREE PASS ACTIVE
+                        Pro Pass ACTIVE
                       </Badge>
                     ) : (
                       <span className="text-slate-400">Standard</span>
@@ -2022,7 +2022,7 @@ function UserManagement() {
                 {action === "notification"
                   ? "Send Learner Notification"
                   : action === "pass"
-                    ? "Configure Student Free Pass"
+                    ? "Configure Student Pro Pass"
                     : "Assign Discount Coupon / Offer"}
               </h3>
               <Button variant="ghost" size="sm" onClick={() => setAction(null)} className="h-7 w-7 p-0">
@@ -2071,7 +2071,7 @@ function UserManagement() {
                     onChange={(event) => setPassEnabled(event.target.checked)}
                     className="size-4 rounded text-blue-600"
                   />
-                  <span>Enable Free Pass (Full Access to All Tests)</span>
+                  <span>Enable Pro Pass (Full Access to All Tests)</span>
                 </label>
                 <div>
                   <Label>Pass Validity Duration</Label>
