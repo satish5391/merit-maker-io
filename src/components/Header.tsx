@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 import { ADMIN_EMAILS } from "@/lib/admin-access";
-import { getDisplayName } from "@/lib/user-profile";
 import { isSupabaseUserId } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -22,9 +21,40 @@ export default function Header() {
   const isAdmin = Boolean(
     auth.user?.email && ADMIN_EMAILS.includes(auth.user.email.trim().toLowerCase()),
   );
-  const profile = auth.profile;
-  const displayName = getDisplayName(profile?.name, auth.user?.email);
-  const initial = displayName.charAt(0).toUpperCase() || "S";
+
+  // Resolved full name: checks full_name first, then name, then user_metadata
+  const rawResolvedName =
+    (auth.profile as any)?.full_name ||
+    (auth.profile as any)?.name ||
+    auth.user?.user_metadata?.full_name ||
+    auth.user?.user_metadata?.name ||
+    "";
+
+  // Cache in component state so switching browser tabs never flickers back to email
+  const [displayName, setDisplayName] = useState<string>(() => {
+    if (rawResolvedName) return rawResolvedName;
+    try {
+      return localStorage.getItem("rankdon_cached_name") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    if (rawResolvedName && rawResolvedName !== displayName) {
+      setDisplayName(rawResolvedName);
+      try {
+        localStorage.setItem("rankdon_cached_name", rawResolvedName);
+      } catch {
+        // ignore
+      }
+    }
+  }, [rawResolvedName, displayName]);
+
+  // Fallback label if user hasn't set any name yet (never raw email handle)
+  const finalDisplayName = displayName || rawResolvedName || "Learner";
+  const initial = finalDisplayName.charAt(0).toUpperCase() || "L";
+
   const [notifications, setNotifications] = useState<
     Database["public"]["Tables"]["user_notifications"]["Row"][]
   >([]);
@@ -203,15 +233,15 @@ export default function Header() {
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-2 rounded-full border border-border bg-background px-2 py-1.5 text-left shadow-sm transition-colors hover:bg-accent">
                     <Avatar className="h-8 w-8">
-                      {profile?.avatarUrl ? (
-                        <AvatarImage src={profile.avatarUrl} alt={displayName} />
+                      {(auth.profile as any)?.avatarUrl ? (
+                        <AvatarImage src={(auth.profile as any).avatarUrl} alt={finalDisplayName} />
                       ) : null}
                       <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-semibold text-white">
                         {initial}
                       </AvatarFallback>
                     </Avatar>
                     <span className="hidden items-center gap-2 sm:flex">
-                      <span className="text-sm font-medium text-foreground">{displayName}</span>
+                      <span className="text-sm font-medium text-foreground">{finalDisplayName}</span>
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     </span>
                   </button>
@@ -220,15 +250,15 @@ export default function Header() {
                 <DropdownMenuContent align="end" className="w-64">
                   <div className="flex items-center gap-3 px-2 py-2">
                     <Avatar className="h-9 w-9">
-                      {profile?.avatarUrl ? (
-                        <AvatarImage src={profile.avatarUrl} alt={displayName} />
+                      {(auth.profile as any)?.avatarUrl ? (
+                        <AvatarImage src={(auth.profile as any).avatarUrl} alt={finalDisplayName} />
                       ) : null}
                       <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-600 text-xs font-semibold text-white">
                         {initial}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                      <p className="truncate text-sm font-medium text-foreground">{finalDisplayName}</p>
                       <p className="truncate text-xs text-muted-foreground">{auth.user.email}</p>
                     </div>
                   </div>
@@ -238,7 +268,7 @@ export default function Header() {
                   <DropdownMenuItem asChild>
                     <Link to="/profile" className="flex cursor-pointer items-center gap-2">
                       <UserRound className="h-4 w-4" />
-                      My Profile & Details
+                      My Profile &amp; Details
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -249,7 +279,7 @@ export default function Header() {
                     }}
                   >
                     <GraduationCap className="h-4 w-4" />
-                    My Enrolled Tests & Pass
+                    My Enrolled Tests &amp; Pass
                   </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem asChild>
@@ -265,6 +295,11 @@ export default function Header() {
                   <DropdownMenuItem
                     className="flex cursor-pointer items-center gap-2 text-red-600 focus:text-red-600"
                     onSelect={() => {
+                      try {
+                        localStorage.removeItem("rankdon_cached_name");
+                      } catch {
+                        // ignore
+                      }
                       void auth.signOut();
                     }}
                   >
