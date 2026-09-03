@@ -2154,11 +2154,13 @@ function UserManagement() {
 type StudyNote = {
   id: string;
   title: string;
-  description: string;
+  description?: string | null;
   category: string;
   file_url: string;
   is_free: boolean;
-  created_at: string;
+  price?: number | null;
+  discount_price?: number | null;
+  created_at?: string;
 };
 
 function StudyMaterialsManager() {
@@ -2181,6 +2183,8 @@ function StudyMaterialsManager() {
   const [category, setCategory] = useState("General Awareness");
   const [fileUrl, setFileUrl] = useState("");
   const [isFree, setIsFree] = useState(true);
+  const [price, setPrice] = useState<number | "">("");
+  const [discountPrice, setDiscountPrice] = useState<number | "">("");
 
   const reset = () => {
     setEditingId(null);
@@ -2189,6 +2193,20 @@ function StudyMaterialsManager() {
     setCategory("General Awareness");
     setFileUrl("");
     setIsFree(true);
+    setPrice("");
+    setDiscountPrice("");
+  };
+
+  const startEdit = (note: StudyNote) => {
+    setEditingId(note.id);
+    setTitle(note.title);
+    setDescription(note.description ?? "");
+    setCategory(note.category);
+    setFileUrl(note.file_url);
+    setIsFree(Boolean(note.is_free));
+    setPrice(note.price ?? "");
+    setDiscountPrice(note.discount_price ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const save = async () => {
@@ -2196,57 +2214,247 @@ function StudyMaterialsManager() {
       toast.error("Title and resource URL are required");
       return;
     }
-    const payload = {
+
+    const finalPrice = isFree ? 0 : price === "" ? null : Number(price);
+    const finalDiscount = isFree ? 0 : discountPrice === "" ? null : Number(discountPrice);
+
+    const payload: Record<string, any> = {
       title: title.trim(),
       description: description.trim(),
       category: category.trim() || "General",
       file_url: fileUrl.trim(),
       is_free: isFree,
+      price: finalPrice,
+      discount_price: finalDiscount,
     };
+
     const result = editingId
       ? await (supabase as any).from("study_notes").update(payload).eq("id", editingId)
       : await (supabase as any).from("study_notes").insert(payload);
+
     if (result.error) {
       toast.error(result.error.message);
       return;
     }
-    toast.success(editingId ? "Note updated" : "Note published");
+
+    toast.success(editingId ? "Material updated" : "Material published");
     reset();
+    void qc.invalidateQueries({ queryKey: ["study-notes"] });
+  };
+
+  const deleteNote = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this study material?")) return;
+
+    const { error } = await (supabase as any).from("study_notes").delete().eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Study material deleted");
+    if (editingId === id) reset();
+    void qc.invalidateQueries({ queryKey: ["study-notes"] });
+  };
+
+  const toggleFree = async (note: StudyNote) => {
+    const nextStatus = !note.is_free;
+    const { error } = await (supabase as any)
+      .from("study_notes")
+      .update({ is_free: nextStatus })
+      .eq("id", note.id);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success(`Set to ${nextStatus ? "Free" : "Paid"}`);
     void qc.invalidateQueries({ queryKey: ["study-notes"] });
   };
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-      <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3">
-        <h3 className="font-semibold text-slate-900 text-sm">Add Study PDF / Material</h3>
-        <div>
-          <Label className="text-xs">Title</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
+      {/* Creation / Edit Form */}
+      <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3.5">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 className="font-semibold text-slate-900 text-sm">
+            {editingId ? "Edit Study Material" : "Add Study PDF / Material"}
+          </h3>
+          {editingId && (
+            <Button variant="ghost" size="sm" onClick={reset} className="h-7 text-xs text-slate-500">
+              <X className="mr-1 size-3.5" /> Cancel
+            </Button>
+          )}
         </div>
+
         <div>
-          <Label className="text-xs">Category</Label>
-          <Input value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
+          <Label className="text-xs font-semibold text-slate-700">Title</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Maths notes 1"
+            className="mt-1 h-9 text-xs rounded-xl"
+          />
         </div>
+
         <div>
-          <Label className="text-xs">Resource Link (PDF / Cloud URL)</Label>
-          <Input value={fileUrl} onChange={(e) => setFileUrl(e.target.value)} className="mt-1 h-9 text-xs rounded-xl" />
+          <Label className="text-xs font-semibold text-slate-700">Category</Label>
+          <Input
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="General Awareness"
+            className="mt-1 h-9 text-xs rounded-xl"
+          />
         </div>
-        <Button onClick={() => void save()} size="sm" className="w-full bg-blue-600 rounded-xl mt-2">
+
+        <div>
+          <Label className="text-xs font-semibold text-slate-700">Resource Link (PDF / Cloud URL)</Label>
+          <Input
+            value={fileUrl}
+            onChange={(e) => setFileUrl(e.target.value)}
+            placeholder="https://..."
+            className="mt-1 h-9 text-xs rounded-xl font-mono"
+          />
+        </div>
+
+        <div>
+          <Label className="text-xs font-semibold text-slate-700">Description (Optional)</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Key highlights or covered syllabus..."
+            className="mt-1 min-h-[50px] text-xs rounded-xl"
+          />
+        </div>
+
+        {/* Pricing Selection */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
+          <Label className="text-xs font-semibold text-slate-800">Access Mode</Label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFree(true)}
+              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold border transition-all ${
+                isFree
+                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              Free Access
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFree(false)}
+              className={`flex-1 rounded-lg py-1.5 text-xs font-semibold border transition-all ${
+                !isFree
+                  ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              Paid Document
+            </button>
+          </div>
+
+          {!isFree && (
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
+              <div>
+                <Label className="text-[11px] text-slate-600">Original Price (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="99"
+                  className="mt-1 h-8 text-xs bg-white rounded-lg"
+                />
+              </div>
+              <div>
+                <Label className="text-[11px] text-slate-600">Offer Price (₹)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={discountPrice}
+                  onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="49"
+                  className="mt-1 h-8 text-xs bg-white rounded-lg"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Button onClick={() => void save()} size="sm" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 text-xs font-semibold mt-2">
           {editingId ? "Update Material" : "Publish Material"}
         </Button>
       </div>
 
+      {/* Published Documents List */}
       <div className="lg:col-span-7 space-y-3">
-        <h4 className="font-bold text-slate-900 text-sm">Published Documents</h4>
-        {notes.map((n) => (
-          <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-4 text-xs flex justify-between items-center shadow-xs">
-            <div>
-              <span className="font-bold text-slate-800">{n.title}</span>
-              <span className="text-slate-400 block mt-0.5">{n.category}</span>
-            </div>
-            <Badge variant={n.is_free ? "secondary" : "destructive"}>{n.is_free ? "FREE" : "PAID"}</Badge>
+        <h4 className="font-bold text-slate-900 text-sm">Published Documents ({notes.length})</h4>
+        
+        {notes.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+            No study materials uploaded yet.
           </div>
-        ))}
+        ) : (
+          notes.map((n) => {
+            const hasDiscount = n.discount_price != null && n.price != null && Number(n.discount_price) < Number(n.price);
+            return (
+              <div
+                key={n.id}
+                className="rounded-xl border border-slate-200 bg-white p-4 text-xs flex justify-between items-center shadow-xs hover:border-slate-300 transition-all"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800 text-sm">{n.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => void toggleFree(n)}
+                      title="Click to toggle Free/Paid status"
+                      className="cursor-pointer"
+                    >
+                      <Badge variant={n.is_free ? "secondary" : "destructive"}>
+                        {n.is_free ? "FREE" : "PAID"}
+                      </Badge>
+                    </button>
+                    {!n.is_free && (
+                      <span className="text-xs font-bold text-slate-700">
+                        ₹{n.discount_price ?? n.price ?? 0}
+                        {hasDiscount && (
+                          <span className="text-slate-400 line-through text-[11px] ml-1">
+                            ₹{n.price}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-slate-400 block">{n.category}</span>
+                  {n.description && <p className="text-slate-500 text-[11px] line-clamp-1">{n.description}</p>}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => startEdit(n)}
+                    className="h-8 text-xs rounded-lg px-2.5"
+                  >
+                    <Pencil className="mr-1 size-3" /> Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => void deleteNote(n.id)}
+                    className="h-8 w-8 p-0 rounded-lg"
+                    title="Delete document"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
