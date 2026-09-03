@@ -14,6 +14,12 @@ type AuthContextValue = {
   profile: UserProfile | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
+  sendEmailOtp: (email: string) => Promise<{ error: any }>;
+  verifyEmailOtp: (
+    email: string,
+    token: string,
+    metadata?: { full_name?: string; phone?: string; target_exam?: string }
+  ) => Promise<{ error: any }>;
   signUpWithPassword: (
     email: string,
     password: string,
@@ -144,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const email = user?.email ?? updates.email ?? "";
     const updatedName = updates.name ?? updates.full_name;
-    const { data, error } = await (supabase as any)
+    const { error } = await (supabase as any)
       .from("profiles")
       .upsert({
         id: user.id,
@@ -180,6 +186,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     return { error: res.error };
+  };
+
+  const sendEmailOtp = async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: true,
+      },
+    });
+    return { error };
+  };
+
+  const verifyEmailOtp = async (
+    email: string,
+    token: string,
+    metadata?: { full_name?: string; phone?: string; target_exam?: string }
+  ) => {
+    const res = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "email",
+    });
+
+    if (res.error) return { error: res.error };
+
+    if (res.data?.user && metadata) {
+      await (supabase as any).from("profiles").upsert({
+        id: res.data.user.id,
+        email: res.data.user.email ?? email,
+        full_name: metadata.full_name || null,
+        phone: metadata.phone || null,
+        target_exam: metadata.target_exam || null,
+        updated_at: new Date().toISOString(),
+      });
+      await refreshProfile();
+    }
+
+    return { error: null };
   };
 
   const signUpWithPassword = async (
@@ -261,6 +305,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       signInWithPassword,
       signInWithGoogle,
+      sendEmailOtp,
+      verifyEmailOtp,
       signUpWithPassword,
       updateProfile,
       refreshProfile,
