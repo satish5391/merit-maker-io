@@ -26,7 +26,7 @@ export default function AuthModal() {
   const [email, setEmail] = useState('');
   const [targetExam, setTargetExam] = useState(DEFAULT_TARGET_EXAM);
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(90);
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
@@ -61,7 +61,7 @@ export default function AuthModal() {
     setIdentifier('');
     setFullName('');
     setTargetExam(DEFAULT_TARGET_EXAM);
-    setCountdown(30);
+    setCountdown(90);
   };
 
   const handleGoogleAuth = async () => {
@@ -102,7 +102,7 @@ export default function AuthModal() {
 
       toast.success(`OTP sent to ${targetEmail}`);
       setStep(2);
-      setCountdown(30);
+      setCountdown(90);
       setOtp(Array(6).fill(''));
       setTimeout(() => inputRefs.current[0]?.focus(), 50);
     } catch (e: any) {
@@ -119,7 +119,7 @@ export default function AuthModal() {
       const { error } = await sendEmailOtp(targetEmail);
       if (error) throw error;
       toast.success('New OTP sent to your email!');
-      setCountdown(30);
+      setCountdown(90);
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || 'Could not resend OTP.');

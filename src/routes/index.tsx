@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -148,6 +148,29 @@ function Home() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "duration" | "questions">("newest");
+
+  const routerSearch = useRouterState({
+    select: (state) => state.location.search as Record<string, string | undefined>,
+  });
+
+  useEffect(() => {
+    const currentTab = routerSearch["tab"] || "home";
+    const currentCategory = routerSearch["category"] || "All";
+    const currentQ = routerSearch["q"] || "";
+
+    if (
+      currentTab === "home" ||
+      currentTab === "free" ||
+      currentTab === "packages" ||
+      currentTab === "enrolled" ||
+      currentTab === "all"
+    ) {
+      setActiveView(currentTab as "home" | "all" | "free" | "packages" | "enrolled");
+    }
+
+    setActiveCategory(currentCategory);
+    setSearch(currentQ);
+  }, [routerSearch]);
 
   const updateUrlParam = (key: string, value: string) => {
     try {
