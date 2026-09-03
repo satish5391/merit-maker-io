@@ -11,7 +11,15 @@ import { useAuth } from '@/context/AuthContext';
 const TARGET_EXAMS = TARGET_EXAM_OPTIONS_WITH_LABELS.map((option) => option.value);
 
 export default function AuthModal() {
-  const { authModalOpen, authModalTab, closeAuthModal, signInWithPassword, signUpWithPassword } = useAuth();
+  const { 
+    authModalOpen, 
+    authModalTab, 
+    closeAuthModal, 
+    signInWithPassword, 
+    signUpWithPassword,
+    signInWithGoogle 
+  } = useAuth();
+  
   const [tab, setTab] = useState<'signin' | 'signup'>(authModalTab);
   const [step, setStep] = useState<1 | 2>(1);
   const [fullName, setFullName] = useState('');
@@ -115,6 +123,19 @@ export default function AuthModal() {
     setCountdown(30);
     setOtp(Array(6).fill(''));
     setTimeout(() => inputRefs.current[0]?.focus(), 0);
+  };
+
+  const handleGoogleAuth = async () => {
+    try {
+      setLoading(true);
+      const result = await signInWithGoogle();
+      if (result?.error) throw result.error;
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : 'Google sign-in failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateOtpDigit = (index: number, value: string) => {
@@ -300,7 +321,13 @@ export default function AuthModal() {
               <div className="h-px flex-1 bg-slate-700" />
             </div>
 
-            <Button type="button" variant="outline" className="h-12 w-full rounded-2xl border-slate-700 bg-slate-900/50 text-base font-medium text-white hover:bg-slate-800">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleGoogleAuth}
+              disabled={loading}
+              className="h-12 w-full rounded-2xl border-slate-700 bg-slate-900/50 text-base font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
               Continue with Google
             </Button>
 

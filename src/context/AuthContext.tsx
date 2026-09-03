@@ -13,6 +13,7 @@ type AuthContextValue = {
   loading: boolean;
   profile: UserProfile | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: any }>;
+  signInWithGoogle: () => Promise<{ error: any }>;
   signUpWithPassword: (
     email: string,
     password: string,
@@ -81,20 +82,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.warn("Unable to load profile from Supabase:", error);
           return;
         }
-          if (!active || !data?.["full_name"]) return;
+        if (!active || !data?.["full_name"]) return;
 
-          const email = user.email ?? "";
-          const defaultProfile = getDefaultProfile(email);
-          setProfile({
-            ...defaultProfile,
-            ...data,
-            id: user.id,
-            email,
-            name: data["full_name"],
-            full_name: data["full_name"],
-            avatarUrl: data["avatar_url"] ?? defaultProfile.avatarUrl,
-            joinedDate: data["joined_at"] ?? data["created_at"] ?? defaultProfile.joinedDate,
-          });
+        const email = user.email ?? "";
+        const defaultProfile = getDefaultProfile(email);
+        setProfile({
+          ...defaultProfile,
+          ...data,
+          id: user.id,
+          email,
+          name: data["full_name"],
+          full_name: data["full_name"],
+          avatarUrl: data["avatar_url"] ?? defaultProfile.avatarUrl,
+          joinedDate: data["joined_at"] ?? data["created_at"] ?? defaultProfile.joinedDate,
+        });
       } catch (error) {
         console.warn("Unable to load profile from Supabase:", error);
       }
@@ -166,6 +167,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithPassword = async (email: string, password: string) => {
     const res = await supabase.auth.signInWithPassword({ email, password });
+    return { error: res.error };
+  };
+
+  const signInWithGoogle = async () => {
+    const redirectOrigin =
+      typeof window !== "undefined" ? window.location.origin : "https://rankdon.in";
+    const res = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectOrigin,
+      },
+    });
     return { error: res.error };
   };
 
@@ -247,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       profile,
       signInWithPassword,
+      signInWithGoogle,
       signUpWithPassword,
       updateProfile,
       refreshProfile,
