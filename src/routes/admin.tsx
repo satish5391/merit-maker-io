@@ -106,7 +106,7 @@ const BULK_UPLOAD_HEADERS = [
 ];
 
 function Admin() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const email = user?.email?.trim().toLowerCase() ?? "";
 
   if (loading) {
@@ -139,7 +139,11 @@ function Admin() {
     );
   }
 
-  if (!ADMIN_EMAILS.includes(email)) {
+  const isAdmin =
+    (profile as any)?.role === "admin" ||
+    (typeof ADMIN_EMAILS !== "undefined" && ADMIN_EMAILS.includes(email));
+
+  if (!isAdmin) {
     return (
       <div className="mx-auto max-w-md px-4 py-20">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -193,7 +197,6 @@ function AdminDashboard() {
     { id: `section-${Date.now()}`, name: "Default", subject: subject, duration_minutes: duration },
   ]);
   const [sectionalTiming, setSectionalTiming] = useState(false);
-
   const resetForm = () => {
     setEditingId(null);
     setTitle("");
