@@ -399,16 +399,28 @@ function AdminDashboard() {
     const worksheet = XLSX.utils.aoa_to_sheet([
       BULK_UPLOAD_HEADERS,
       [
-        "Default",
-        "What is 2 + 2?",
-        "3",
-        "4",
-        "5",
-        "6",
+        "General Awareness",
+        "What is the capital of India?",
+        "Mumbai",
+        "New Delhi",
+        "Kolkata",
+        "Chennai",
         "B",
         "2",
         "0.5",
-        "Add the numbers together.",
+        "New Delhi is the official capital of India.",
+      ],
+      [
+        "Computer Proficiency",
+        "Which Excel formula calculates the arithmetic average?",
+        "AVERAGE(A1:A10)",
+        "COUNT(A1:A10)",
+        "SUM(A1:A10)",
+        "MEDIAN(A1:A10)",
+        "A",
+        "2",
+        "0.5",
+        "AVERAGE calculates the arithmetic mean.",
       ],
     ]);
     const csv = XLSX.utils.sheet_to_csv(worksheet);
@@ -439,8 +451,7 @@ function AdminDashboard() {
       const firstSheet = workbook.Sheets[sheetName];
       if (!firstSheet) throw new Error("Could not read worksheet.");
 
-      // CRITICAL FIX: SheetJS isolates any cell starting with '=' into cell.f and leaves cell.v as undefined.
-      // This restores the formula string into cell.v so sheet_to_json reads the literal option text.
+      // Restore cells where SheetJS isolated leading '=' formulas (.f) and left value (.v) blank
       for (const cellKey of Object.keys(firstSheet)) {
         if (cellKey.startsWith("!")) continue;
         const cell = firstSheet[cellKey];
@@ -464,6 +475,48 @@ function AdminDashboard() {
         return out;
       });
 
+      // 1. Gather all unique section names defined in the CSV
+      const fileSectionNames = Array.from(
+        new Set(
+          normalizedRows
+            .map((r) => String(r["section"] ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+
+      // 2. Synchronize sections: auto-create sections defined in CSV that do not exist yet
+      let activeSections = [...sections];
+      if (fileSectionNames.length > 0) {
+        const isSingleDefault =
+          activeSections.length === 1 &&
+          activeSections[0]?.name.toLowerCase() === "default";
+
+        if (isSingleDefault) {
+          activeSections = fileSectionNames.map((secName, idx) => ({
+            id: `sec-${Date.now()}-${idx}`,
+            name: secName,
+            subject: subject || "General",
+            duration_minutes: duration,
+          }));
+        } else {
+          fileSectionNames.forEach((secName) => {
+            const exists = activeSections.some(
+              (s) =>
+                s.name.toLowerCase() === secName.toLowerCase() || s.id === secName
+            );
+            if (!exists) {
+              activeSections.push({
+                id: `sec-${Date.now()}-${activeSections.length}`,
+                name: secName,
+                subject: subject || "General",
+                duration_minutes: duration,
+              });
+            }
+          });
+        }
+        setSections(activeSections);
+      }
+
       const invalidRows: number[] = [];
       const parsedQuestions: any[] = [];
 
@@ -475,12 +528,12 @@ function AdminDashboard() {
         const optD = String(row["option_d"] ?? "").trim();
         const rawAns = String(row["correct_answer"] ?? "").toLowerCase().trim();
 
-        // 1. Skip completely empty or trailing blank lines
+        // Skip completely empty or trailing blank lines
         if (!qText && !optA && !optB && !optC && !optD && !rawAns) {
           return;
         }
 
-        // 2. Validate mandatory fields
+        // Validate mandatory fields
         if (!qText || !optA || !optB || !optC || !optD || !rawAns) {
           invalidRows.push(index + 2);
           return;
@@ -504,10 +557,10 @@ function AdminDashboard() {
         }
 
         const sectionName = String(row["section"] ?? "").trim();
-        const matchedSection = sections.find(
+        const matchedSection = activeSections.find(
           (s: any) =>
             s.id === sectionName ||
-            String(s.name ?? "").toLowerCase() === sectionName.toLowerCase(),
+            String(s.name ?? "").toLowerCase() === sectionName.toLowerCase()
         );
 
         parsedQuestions.push({
@@ -517,7 +570,7 @@ function AdminDashboard() {
           options,
           correct_index: correctIndex,
           explanation: String(row["explanation"] ?? "").trim(),
-          section_id: matchedSection?.id ?? sections[0]?.id ?? "section-default",
+          section_id: matchedSection?.id ?? activeSections[0]?.id ?? "section-default",
         });
       });
 
@@ -544,7 +597,9 @@ function AdminDashboard() {
       ]);
 
       qc.invalidateQueries({ queryKey: ["questions", editingId] });
-      toast.success(`Successfully imported ${parsedQuestions.length} questions!`);
+      toast.success(
+        `Successfully imported ${parsedQuestions.length} questions across ${activeSections.length} sections!`
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not import questions");
     }
@@ -806,9 +861,7 @@ function AdminDashboard() {
                         type="checkbox"
                         checked={isLive}
                         onChange={(e) => {
-                          const enabled = e.target.checked;
-                          setIsLive(enabled);
-                          if (enabled) setSectionalTiming(false);
+                          setIsLive(e.target.checked);
                         }}
                         className="size-4 rounded text-blue-600"
                       />
@@ -883,7 +936,6 @@ function AdminDashboard() {
                         <input
                           type="checkbox"
                           checked={sectionalTiming}
-                          disabled={isLive}
                           onChange={(e) => setSectionalTiming(e.target.checked)}
                           className="size-3.5 rounded text-blue-600"
                         />
@@ -973,8 +1025,24 @@ function AdminDashboard() {
                     <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
                       {questions.map((q, i) => (
                         <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-slate-700">Question #{i + 1}</span>
+                          {/* Question Card Header with Section Selector */}
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-bold text-slate-700">Question #{i + 1}</span>
+
+                              <select
+                                value={q.sectionId || sections[0]?.id || "section-default"}
+                                onChange={(e) => patch(i, { sectionId: e.target.value })}
+                                className="h-7 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 outline-none focus:border-blue-500"
+                              >
+                                {sections.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name || "Untitled Section"}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
                             {questions.length > 1 && (
                               <button
                                 type="button"

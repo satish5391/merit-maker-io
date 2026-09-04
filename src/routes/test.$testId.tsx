@@ -748,7 +748,7 @@ function TestPage() {
             Question {current - getSectionStartIndex(currentSection) + 1} of{" "}
             {activeSectionQuestions.length}
           </p>
-          <h2 className="mt-2 text-base font-medium md:text-lg">{q.body}</h2>
+          <h2 className="mt-2 text-base font-medium md:text-lg whitespace-pre-line">{q.body}</h2>
 
           <div className="mt-5 space-y-3">
             {(Array.isArray(q.options) ? q.options : []).map((opt: string, i: number) => {
