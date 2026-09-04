@@ -97,6 +97,17 @@ function getMetric(
   };
 }
 
+function getStoredMetric(attempt: Attempt, total: number): AnalysisMetric {
+  return {
+    score: Number(attempt.score ?? 0),
+    accuracy: Number(attempt.accuracy ?? 0),
+    correct: Number(attempt.correct_count ?? 0),
+    wrong: Number(attempt.wrong_count ?? 0),
+    time: Number(attempt.time_taken_seconds ?? 0),
+    total,
+  };
+}
+
 function averageMetric(metrics: AnalysisMetric[]): AnalysisMetric {
   if (!metrics.length) return { score: 0, accuracy: 0, correct: 0, wrong: 0, time: 0, total: 0 };
   return metrics.reduce(
@@ -304,9 +315,17 @@ function ResultPage() {
       : questions.filter((question: any) => question.section_id === analysisSection);
     const positiveMarks = Number(test?.positive_marks ?? 0);
     const negativeMarks = Number(test?.negative_marks ?? 0);
-    const attemptMetrics = completed.map((row) => getMetric(row, questionScope, positiveMarks, negativeMarks));
-    const userMetric = attempt ? getMetric(attempt, questionScope, positiveMarks, negativeMarks) : averageMetric([]);
-    const topperMetric = attemptMetrics[completed.findIndex((row) => row.id === sortedAttempts[0]?.id)] ?? userMetric;
+    const attemptMetrics = completed.map((row) =>
+      analysisSection === "overall"
+        ? getStoredMetric(row, questionScope.length)
+        : getMetric(row, questionScope, positiveMarks, negativeMarks),
+    );
+    const userMetric = attempt
+      ? analysisSection === "overall"
+        ? getStoredMetric(attempt, questionScope.length)
+        : getMetric(attempt, questionScope, positiveMarks, negativeMarks)
+      : averageMetric([]);
+    const topperMetric = attemptMetrics[0] ?? userMetric;
     const averageTotals = averageMetric(attemptMetrics);
     const averageMetricValue = attemptMetrics.length
       ? Object.fromEntries(Object.entries(averageTotals).map(([key, value]) => [key, value / attemptMetrics.length])) as AnalysisMetric
@@ -541,22 +560,6 @@ function ResultPage() {
               <div>Topper: <strong className="text-foreground">{topScore}</strong></div>
             </div>
           </div>
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {analysisSections.map((section) => {
-              const Icon = section.id === "overall" ? Layers : getSectionIcon(section.name);
-              return (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => setAnalysisSection(section.id)}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${analysisSection === section.id ? "border-blue-500 bg-blue-600 text-white shadow-sm ring-1 ring-blue-500" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  <Icon className="size-4" />
-                  {section.name}
-                </button>
-              );
-            })}
-          </div>
           <div className="mt-4 h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={analysis.distribution} margin={{ top: 12, right: 16, left: -18, bottom: 4 }}>
@@ -594,10 +597,27 @@ function ResultPage() {
         </aside>
       </div>
 
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
+        {analysisSections.map((section) => {
+          const Icon = section.id === "overall" ? Layers : getSectionIcon(section.name);
+          return (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setAnalysisSection(section.id)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition ${analysisSection === section.id ? "border-blue-500 bg-blue-600 text-white shadow-sm ring-1 ring-blue-500" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+            >
+              <Icon className="size-4" />
+              {section.name}
+            </button>
+          );
+        })}
+      </div>
+
       <section className="mt-6 rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-display text-lg font-semibold">Compare with Topper</h2>
+            <h2 className="font-display text-lg font-semibold">Comparison Table</h2>
             <p className="mt-1 text-sm text-muted-foreground">{analysisSections.find((section) => section.id === analysisSection)?.name ?? "Overall"} performance</p>
           </div>
           <span className="text-sm text-muted-foreground">{total} completed attempts</span>

@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -125,17 +126,19 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { pathname } = useLocation();
+  const isTestTakingRoute = pathname.includes("/test/") || pathname.includes("/attempt/");
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden font-sans">
-          <SiteHeaderWithAuth />
+          {!isTestTakingRoute && <SiteHeaderWithAuth />}
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <main className="min-h-0 flex-1">
             <Outlet />
           </main>
-          <Footer />
+          {!isTestTakingRoute && <Footer />}
           <AuthModal />
         </div>
       </AuthProvider>
