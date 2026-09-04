@@ -29,27 +29,56 @@ export default function Header() {
     auth.user?.user_metadata?.full_name ||
     auth.user?.user_metadata?.name ||
     "";
+  const databaseProfileName = String((auth.profile as any)?.full_name ?? "").trim();
 
-  // Cache in component state so switching browser tabs never flickers back to email
-  const [displayName, setDisplayName] = useState<string>(() => {
-    if (rawResolvedName) return rawResolvedName;
+  const cachedNameKey = auth.user?.id ? `rankdon_cached_name:${auth.user.id}` : "rankdon_cached_name";
+
+  const readCachedName = (key: string) => {
     try {
-      return localStorage.getItem("rankdon_cached_name") || "";
+      return localStorage.getItem(key) || "";
     } catch {
       return "";
     }
+  };
+
+  // Prefer the cached custom name so auth refreshes cannot overwrite it.
+  const [displayName, setDisplayName] = useState<string>(() => {
+    return readCachedName(cachedNameKey) || databaseProfileName || rawResolvedName;
   });
 
   useEffect(() => {
-    if (rawResolvedName && rawResolvedName !== displayName) {
+    if (databaseProfileName) {
+      setDisplayName(databaseProfileName);
+      try {
+        localStorage.setItem(cachedNameKey, databaseProfileName);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    const cachedName = readCachedName(cachedNameKey) || readCachedName("rankdon_cached_name");
+    if (cachedName) {
+      setDisplayName(cachedName);
+      if (auth.user?.id) {
+        try {
+          localStorage.setItem(cachedNameKey, cachedName);
+        } catch {
+          // ignore
+        }
+      }
+      return;
+    }
+
+    if (rawResolvedName) {
       setDisplayName(rawResolvedName);
       try {
-        localStorage.setItem("rankdon_cached_name", rawResolvedName);
+        localStorage.setItem(cachedNameKey, rawResolvedName);
       } catch {
         // ignore
       }
     }
-  }, [rawResolvedName, displayName]);
+  }, [auth.user?.id, cachedNameKey, databaseProfileName, rawResolvedName]);
 
   // Fallback label if user hasn't set any name yet (never raw email handle)
   const finalDisplayName = displayName || rawResolvedName || "Learner";
@@ -297,6 +326,9 @@ export default function Header() {
                     onSelect={() => {
                       try {
                         localStorage.removeItem("rankdon_cached_name");
+                        if (auth.user?.id) {
+                          localStorage.removeItem(`rankdon_cached_name:${auth.user.id}`);
+                        }
                       } catch {
                         // ignore
                       }

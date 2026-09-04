@@ -70,7 +70,7 @@ function TestPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("has_free_pass, free_pass_expires_at")
+        .select("full_name, has_free_pass, free_pass_expires_at")
         .eq("id", supabaseUserId!)
         .maybeSingle();
       if (error) throw error;
@@ -116,6 +116,7 @@ function TestPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const submittedRef = useRef(false);
   const violationsCountRef = useRef(0);
+  const nameEditedRef = useRef(false);
 
   const isLive = Boolean((test as any)?.is_live);
 
@@ -152,16 +153,18 @@ function TestPage() {
   }, [testId, user?.id]);
 
   useEffect(() => {
-    if (name.trim()) return;
+    if (started || nameEditedRef.current) return;
+    const databaseName = String(databaseProfile?.full_name ?? "").trim();
+    const contextProfileName = String((userProfile as any)?.full_name ?? "").trim();
     const defaultName =
+      databaseName ||
+      contextProfileName ||
       user?.user_metadata?.full_name ||
       user?.user_metadata?.name ||
-      (userProfile as any)?.full_name ||
-      userProfile?.name ||
       (user?.email ? user.email.split("@")[0] : "") ||
       "";
-    if (defaultName) setName(defaultName);
-  }, [name, user?.email, user?.user_metadata, userProfile]);
+    if (defaultName && defaultName !== name) setName(defaultName);
+  }, [databaseProfile?.full_name, name, started, user?.email, user?.user_metadata, userProfile]);
 
   const { data: userAttempts = [], isLoading: isLoadingUserAttempts } = useQuery({
     queryKey: ["test-user-attempts", supabaseUserId, testId],
@@ -595,7 +598,10 @@ function TestPage() {
             <Input
               id="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                nameEditedRef.current = true;
+                setName(e.target.value);
+              }}
               placeholder="Enter your name"
               className="mt-1.5"
               disabled={Boolean(user?.email)}
