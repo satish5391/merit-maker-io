@@ -12,10 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AttemptedTestsRouteImport } from './routes/attempted-tests'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LiveTestsRouteImport } from './routes/live-tests'
 import { Route as NotesRouteImport } from './routes/notes'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as RefundRouteImport } from './routes/refund'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ResultAttemptIdRouteImport } from './routes/result.$attemptId'
 import { Route as ReviewAttemptIdRouteImport } from './routes/review.$attemptId'
 import { Route as TestTestIdRouteImport } from './routes/test.$testId'
@@ -35,6 +39,11 @@ const AttemptedTestsRoute = AttemptedTestsRouteImport.update({
   path: '/attempted-tests',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -50,9 +59,24 @@ const NotesRoute = NotesRouteImport.update({
   path: '/notes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RefundRoute = RefundRouteImport.update({
+  id: '/refund',
+  path: '/refund',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResultAttemptIdRoute = ResultAttemptIdRouteImport.update({
@@ -75,10 +99,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
+  '/contact': typeof ContactRoute
   '/history': typeof HistoryRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/refund': typeof RefundRoute
+  '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
   '/test/$testId': typeof TestTestIdRoute
@@ -87,10 +115,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
+  '/contact': typeof ContactRoute
   '/history': typeof HistoryRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/refund': typeof RefundRoute
+  '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
   '/test/$testId': typeof TestTestIdRoute
@@ -100,10 +132,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
+  '/contact': typeof ContactRoute
   '/history': typeof HistoryRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
+  '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/refund': typeof RefundRoute
+  '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
   '/review/$attemptId': typeof ReviewAttemptIdRoute
   '/test/$testId': typeof TestTestIdRoute
@@ -114,10 +150,14 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/attempted-tests'
+    | '/contact'
     | '/history'
     | '/live-tests'
     | '/notes'
+    | '/privacy'
     | '/profile'
+    | '/refund'
+    | '/terms'
     | '/result/$attemptId'
     | '/review/$attemptId'
     | '/test/$testId'
@@ -126,10 +166,14 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/attempted-tests'
+    | '/contact'
     | '/history'
     | '/live-tests'
     | '/notes'
+    | '/privacy'
     | '/profile'
+    | '/refund'
+    | '/terms'
     | '/result/$attemptId'
     | '/review/$attemptId'
     | '/test/$testId'
@@ -138,10 +182,14 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/attempted-tests'
+    | '/contact'
     | '/history'
     | '/live-tests'
     | '/notes'
+    | '/privacy'
     | '/profile'
+    | '/refund'
+    | '/terms'
     | '/result/$attemptId'
     | '/review/$attemptId'
     | '/test/$testId'
@@ -151,10 +199,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AttemptedTestsRoute: typeof AttemptedTestsRoute
+  ContactRoute: typeof ContactRoute
   HistoryRoute: typeof HistoryRoute
   LiveTestsRoute: typeof LiveTestsRoute
   NotesRoute: typeof NotesRoute
+  PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  RefundRoute: typeof RefundRoute
+  TermsRoute: typeof TermsRoute
   ResultAttemptIdRoute: typeof ResultAttemptIdRoute
   ReviewAttemptIdRoute: typeof ReviewAttemptIdRoute
   TestTestIdRoute: typeof TestTestIdRoute
@@ -183,6 +235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AttemptedTestsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
@@ -204,11 +263,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/refund': {
+      id: '/refund'
+      path: '/refund'
+      fullPath: '/refund'
+      preLoaderRoute: typeof RefundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/result/$attemptId': {
@@ -239,10 +319,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AttemptedTestsRoute: AttemptedTestsRoute,
+  ContactRoute: ContactRoute,
   HistoryRoute: HistoryRoute,
   LiveTestsRoute: LiveTestsRoute,
   NotesRoute: NotesRoute,
+  PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  RefundRoute: RefundRoute,
+  TermsRoute: TermsRoute,
   ResultAttemptIdRoute: ResultAttemptIdRoute,
   ReviewAttemptIdRoute: ReviewAttemptIdRoute,
   TestTestIdRoute: TestTestIdRoute,

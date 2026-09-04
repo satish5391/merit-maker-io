@@ -13,6 +13,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from '@/context/AuthContext';
 import AuthModal from '@/components/AuthModal';
 import Header from '@/components/Header';
+import { Footer } from '@/components/Footer';
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
@@ -134,7 +135,7 @@ function RootComponent() {
           <main className="flex-1">
             <Outlet />
           </main>
-          <footer className="border-t border-border py-6 text-center text-xs text-muted-foreground">© 2026 Rankdon — Practice mock tests with instant analysis.</footer>
+          <Footer />
           <AuthModal />
         </div>
       </AuthProvider>
