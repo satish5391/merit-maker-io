@@ -18,7 +18,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn, isSupabaseUserId } from "@/lib/utils";
-import { clearTestSession } from "@/lib/test-session";
+import {
+  readTestSession,
+  writeTestSession,
+  clearTestSession,
+} from "@/lib/test-session";
 
 export const Route = createFileRoute("/test/$testId")({
   head: () => ({
@@ -113,6 +117,28 @@ function TestPage() {
   const submittedRef = useRef(false);
   const violationsCountRef = useRef(0);
 
+  const isLive = Boolean((test as any)?.is_live);
+
+  // Load persisted session on initial mount
+  useEffect(() => {
+    if (!test || started) return;
+    const session = readTestSession(testId, user?.id);
+    if (session && !session.isSubmitted && session.remainingTimeSeconds > 0) {
+      setAnswers(session.answers);
+      setMarked(
+        (session.markedForReview || []).reduce((acc, id) => ({ ...acc, [id]: true }), {})
+      );
+      setVisited(
+        (session.visitedQuestions || []).reduce((acc, id) => ({ ...acc, [id]: true }), {})
+      );
+      setCurrent(session.currentQuestionIndex);
+      setCurrentSection(session.currentSectionIndex);
+      setSecondsLeft(session.remainingTimeSeconds);
+      setIsPaused(session.isPaused);
+      setStarted(true);
+    }
+  }, [test, testId, user?.id, started]);
+
   const resetTestState = useCallback(() => {
     setAnswers({});
     setMarked({});
@@ -122,7 +148,8 @@ function TestPage() {
     setSectionSubmitted({});
     setIsPaused(false);
     setSectionSecondsLeft(null);
-  }, []);
+    clearTestSession(testId, user?.id);
+  }, [testId, user?.id]);
 
   useEffect(() => {
     if (name.trim()) return;
@@ -183,7 +210,6 @@ function TestPage() {
   );
   const completedAttemptId = completedDatabaseAttempt?.id;
   const isCheckingCompletedAttempt = isLoadingUserAttempts;
-  const isLive = Boolean((test as any)?.is_live);
 
   useEffect(() => {
     if (isLive && !isCheckingCompletedAttempt && completedAttemptId) {
@@ -312,6 +338,38 @@ function TestPage() {
 
   const sectionalTimingEnabled =
     !isLive && Boolean((test as any)?.sectional_timing || (test as any)?.has_sectional_timing);
+
+  // Periodically persist session state
+  const displayedSeconds =
+    sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
+  useEffect(() => {
+    if (!started || !test || !user?.id) return;
+    writeTestSession(testId, user.id, {
+      answers,
+      markedForReview: Object.keys(marked).filter((k) => marked[k]),
+      visitedQuestions: Object.keys(visited).filter((k) => visited[k]),
+      currentQuestionIndex: current,
+      currentSectionIndex: currentSection,
+      remainingTimeSeconds: displayedSeconds,
+      completedSections: Object.keys(sectionSubmitted).filter((k) => sectionSubmitted[k]),
+      isPaused,
+      isLive,
+    });
+  }, [
+    started,
+    test,
+    user?.id,
+    testId,
+    answers,
+    marked,
+    visited,
+    current,
+    currentSection,
+    displayedSeconds,
+    sectionSubmitted,
+    isPaused,
+    isLive,
+  ]);
 
   useEffect(() => {
     if (!started || (!isLive && isPaused)) return;
@@ -610,8 +668,7 @@ function TestPage() {
   const q = currentQuestion;
   const answeredCount = Object.keys(answers).length;
   const totalQuestions = orderedQuestions.length;
-  const displayedSeconds =
-    sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
+  
   const warning = displayedSeconds <= 120 && displayedSeconds > 0;
   const critical = displayedSeconds <= 60 && displayedSeconds > 0;
   const activeSectionStart = getSectionStartIndex(currentSection);

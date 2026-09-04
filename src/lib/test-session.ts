@@ -8,6 +8,8 @@ export type TestSessionState = {
   completedSections: string[];
   isPaused: boolean;
   isSubmitted?: boolean;
+  lastSavedTimestamp?: number; // Wall-clock timestamp (Date.now()) when last saved
+  isLive?: boolean;            // Identifies if this is a time-bound live test
 };
 
 export function getTestSessionKey(testId: string, userId?: string | null) {
@@ -34,9 +36,17 @@ export function readTestSession(testId: string, userId?: string | null): TestSes
     const parsed = JSON.parse(raw) as Partial<TestSessionState>;
     if (!parsed || typeof parsed !== "object") return null;
 
+    let adjustedTime = typeof parsed.remainingTimeSeconds === "number" ? parsed.remainingTimeSeconds : 0;
+
+    // If it's a live test, compute elapsed wall-clock time since the last save
+    if (parsed.isLive && parsed.lastSavedTimestamp) {
+      const elapsedSeconds = Math.floor((Date.now() - parsed.lastSavedTimestamp) / 1000);
+      adjustedTime = Math.max(0, adjustedTime - elapsedSeconds);
+    }
+
     if (
       parsed.isSubmitted === true ||
-      (parsed.remainingTimeSeconds !== undefined && Number(parsed.remainingTimeSeconds) <= 0)
+      adjustedTime <= 0
     ) {
       clearTestSession(testId, userId);
       return null;
@@ -48,10 +58,12 @@ export function readTestSession(testId: string, userId?: string | null): TestSes
       visitedQuestions: Array.isArray(parsed.visitedQuestions) ? parsed.visitedQuestions : [],
       currentQuestionIndex: typeof parsed.currentQuestionIndex === "number" ? parsed.currentQuestionIndex : 0,
       currentSectionIndex: typeof parsed.currentSectionIndex === "number" ? parsed.currentSectionIndex : 0,
-      remainingTimeSeconds: typeof parsed.remainingTimeSeconds === "number" ? Math.max(0, parsed.remainingTimeSeconds) : 0,
+      remainingTimeSeconds: adjustedTime,
       completedSections: Array.isArray(parsed.completedSections) ? parsed.completedSections : [],
       isPaused: Boolean(parsed.isPaused),
       isSubmitted: false,
+      lastSavedTimestamp: Date.now(),
+      isLive: Boolean(parsed.isLive),
     };
   } catch {
     return null;
@@ -64,7 +76,14 @@ export function writeTestSession(testId: string, userId: string | null | undefin
     clearTestSession(testId, userId);
     return;
   }
-  window.localStorage.setItem(getTestSessionKey(testId, userId), JSON.stringify(state));
+
+  // Inject current wall-clock timestamp on write to track background time accurately
+  const stateWithTimestamp: TestSessionState = {
+    ...state,
+    lastSavedTimestamp: Date.now(),
+  };
+
+  window.localStorage.setItem(getTestSessionKey(testId, userId), JSON.stringify(stateWithTimestamp));
 }
 
 export function clearTestSession(testId: string, userId?: string | null) {
