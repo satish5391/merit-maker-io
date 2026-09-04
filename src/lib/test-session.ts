@@ -13,24 +13,14 @@ export type TestSessionState = {
 };
 
 export function getTestSessionKey(testId: string, userId?: string | null) {
-  return `test_session_${testId}_${userId ?? "anonymous"}`;
+  return `rankdon_test_session_${testId}_${userId ?? "anonymous"}`;
 }
 
 export function readTestSession(testId: string, userId?: string | null): TestSessionState | null {
   if (typeof window === "undefined") return null;
   try {
     const scopedKey = getTestSessionKey(testId, userId);
-    let raw = window.localStorage.getItem(scopedKey);
-
-    if (!raw) {
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.includes(testId) && k.includes("session")) {
-          raw = window.localStorage.getItem(k);
-          break;
-        }
-      }
-    }
+    const raw = window.localStorage.getItem(scopedKey);
 
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<TestSessionState>;
@@ -89,21 +79,11 @@ export function writeTestSession(testId: string, userId: string | null | undefin
 export function clearTestSession(testId: string, userId?: string | null) {
   if (typeof window === "undefined") return;
 
-  // Clear from localStorage
-  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
-    const key = window.localStorage.key(index);
-    if (key && (key.includes(testId) || key.startsWith(`test_session_`) || key.startsWith(`rankdon_session_`))) {
-      window.localStorage.removeItem(key);
-    }
-  }
+  const scopedKey = getTestSessionKey(testId, userId);
 
-  // Clear from sessionStorage
-  for (let index = window.sessionStorage.length - 1; index >= 0; index -= 1) {
-    const key = window.sessionStorage.key(index);
-    if (key && (key.includes(testId) || key.startsWith(`test_session_`) || key.startsWith(`rankdon_session_`))) {
-      window.sessionStorage.removeItem(key);
-    }
-  }
+  // Safely remove only this test's session cache from localStorage & sessionStorage
+  window.localStorage.removeItem(scopedKey);
+  window.sessionStorage.removeItem(scopedKey);
 }
 
 export function hasTestSession(testId: string, userId?: string | null): boolean {
