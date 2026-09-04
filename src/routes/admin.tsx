@@ -197,6 +197,7 @@ function AdminDashboard() {
     { id: `section-${Date.now()}`, name: "Default", subject: subject, duration_minutes: duration },
   ]);
   const [sectionalTiming, setSectionalTiming] = useState(false);
+
   const resetForm = () => {
     setEditingId(null);
     setTitle("");
@@ -427,14 +428,34 @@ function AdminDashboard() {
     }
 
     try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const fileData = await file.arrayBuffer();
+      const workbook = XLSX.read(fileData, {
+        type: "array",
+        raw: true,
+      });
       const sheetName = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames[0] : null;
       if (!sheetName) throw new Error("No sheet found in uploaded file.");
 
       const firstSheet = workbook.Sheets[sheetName];
       if (!firstSheet) throw new Error("Could not read worksheet.");
 
-      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, { defval: "" });
+      // CRITICAL FIX: SheetJS isolates any cell starting with '=' into cell.f and leaves cell.v as undefined.
+      // This restores the formula string into cell.v so sheet_to_json reads the literal option text.
+      for (const cellKey of Object.keys(firstSheet)) {
+        if (cellKey.startsWith("!")) continue;
+        const cell = firstSheet[cellKey];
+        if (cell && cell.f && (cell.v === undefined || cell.v === null || cell.v === "")) {
+          cell.v = `=${cell.f}`;
+          cell.w = `=${cell.f}`;
+          cell.t = "s";
+        }
+      }
+
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(firstSheet, {
+        defval: "",
+        raw: false,
+      });
+
       const normalizedRows: Record<string, string>[] = rawRows.map((row) => {
         const out: Record<string, string> = {};
         for (const key of Object.keys(row || {})) {
@@ -447,19 +468,25 @@ function AdminDashboard() {
       const parsedQuestions: any[] = [];
 
       normalizedRows.forEach((row, index) => {
-        const optA = String(row["option_a"] ?? "");
-        const optB = String(row["option_b"] ?? "");
-        const optC = String(row["option_c"] ?? "");
-        const optD = String(row["option_d"] ?? "");
-        const qText = String(row["question_text"] ?? "");
+        const qText = String(row["question_text"] ?? "").trim();
+        const optA = String(row["option_a"] ?? "").trim();
+        const optB = String(row["option_b"] ?? "").trim();
+        const optC = String(row["option_c"] ?? "").trim();
+        const optD = String(row["option_d"] ?? "").trim();
         const rawAns = String(row["correct_answer"] ?? "").toLowerCase().trim();
-        const options: string[] = [optA, optB, optC, optD];
 
+        // 1. Skip completely empty or trailing blank lines
+        if (!qText && !optA && !optB && !optC && !optD && !rawAns) {
+          return;
+        }
+
+        // 2. Validate mandatory fields
         if (!qText || !optA || !optB || !optC || !optD || !rawAns) {
           invalidRows.push(index + 2);
           return;
         }
 
+        const options: string[] = [optA, optB, optC, optD];
         const cleanAns = rawAns.replace(/[^a-d1-4]/g, "");
         let correctIndex = -1;
 
@@ -467,7 +494,9 @@ function AdminDashboard() {
         else if (cleanAns === "b" || cleanAns === "2") correctIndex = 1;
         else if (cleanAns === "c" || cleanAns === "3") correctIndex = 2;
         else if (cleanAns === "d" || cleanAns === "4") correctIndex = 3;
-        else correctIndex = options.findIndex((opt) => opt.toLowerCase().trim() === rawAns);
+        else {
+          correctIndex = options.findIndex((opt) => opt.toLowerCase().trim() === rawAns);
+        }
 
         if (correctIndex < 0 || correctIndex > 3) {
           invalidRows.push(index + 2);
@@ -487,7 +516,7 @@ function AdminDashboard() {
           body: qText,
           options,
           correct_index: correctIndex,
-          explanation: String(row["explanation"] ?? ""),
+          explanation: String(row["explanation"] ?? "").trim(),
           section_id: matchedSection?.id ?? sections[0]?.id ?? "section-default",
         });
       });
@@ -497,7 +526,7 @@ function AdminDashboard() {
       }
 
       if (parsedQuestions.length === 0) {
-        throw new Error("The file contains no question rows.");
+        throw new Error("The file contains no valid question rows.");
       }
 
       const { error } = await (supabase as any).from("questions").insert(parsedQuestions);
@@ -2016,7 +2045,7 @@ function UserManagement() {
         </div>
       </div>
 
-      {/* Full Modal Layer: Send Notification / Manage Pass / Assign Offer */}
+      {/* Full Modal Layer */}
       {action && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
