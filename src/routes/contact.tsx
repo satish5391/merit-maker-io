@@ -11,9 +11,9 @@ function ContactPage() {
       <p className="mt-2 text-xs text-slate-500">Get in touch with the Rankdon support team.</p>
       
       <div className="mt-6 space-y-4 text-sm leading-relaxed bg-slate-50 p-6 rounded-2xl border border-slate-200">
-        <p><strong>Support Email:</strong> support@rankdon.com</p>
-        <p><strong>Support Phone:</strong> +91 XXXXX XXXXX</p>
-        <p><strong>Operational Address:</strong> Jammu, Jammu and Kashmir, India</p>
+        <p><strong>Support Email:</strong> support@rankdon.in</p>
+        <p><strong>Support Phone:</strong> +91 9541405230</p>
+        <p><strong>Operational Address:</strong> Ward no. 6 Hiranagar Near Kendriya Vidyalaya Hiranagar, distt Kathua , Jammu and Kashmir, India</p>
         <p className="text-xs text-slate-500 pt-2">We typically review and respond to inquiries within 24 to 48 hours.</p>
       </div>
 

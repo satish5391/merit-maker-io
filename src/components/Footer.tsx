@@ -1,58 +1,65 @@
 import { Link } from "@tanstack/react-router";
+import { ArrowUpRight, Mail, Phone, ShieldCheck } from "lucide-react";
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-slate-50 pt-16 pb-12 mt-24 text-sm text-slate-600">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10">
-        
-        {/* Brand & Bio */}
-        <div className="space-y-4 md:col-span-1">
-          <Link to="/" className="inline-block">
-            <img src="/logo.png" alt="Rankdon" className="h-9 w-auto object-contain" />
+    <footer className="relative mt-0 overflow-hidden border-t border-slate-700/80 bg-slate-950 text-sm text-slate-300">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
+
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-x-10 gap-y-12 px-5 py-14 sm:px-8 md:grid-cols-2 lg:grid-cols-4 lg:gap-y-10 lg:px-10">
+        <div className="space-y-5">
+          <Link to="/" className="inline-flex items-center transition-opacity hover:opacity-80">
+            <img src="/logo.png" alt="Rankdon" className="h-10 w-auto object-contain" />
           </Link>
-          <p className="text-slate-500 text-xs leading-relaxed">
-            India's reliable mock test platform designed for aspirants to practice full-length exams, analyze performance, and track national percentiles.
+          <p className="max-w-xs text-sm leading-6 text-slate-400">
+            Practice with purpose. Rankdon helps aspirants prepare smarter with realistic mock tests and meaningful performance insights.
+          </p>
+          <p className="max-w-xs border-l-2 border-cyan-400/70 pl-3 text-xs leading-5 text-slate-500">
+            Built for focused preparation, trusted by learners across India.
           </p>
         </div>
 
-        {/* Quick Links */}
         <div>
-          <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-4">Platform</h4>
-          <ul className="space-y-2.5 text-xs">
-            <li><Link to="/" className="hover:text-blue-600 transition-colors">All Mock Tests</Link></li>
-            <li><Link to="/notes" className="hover:text-blue-600 transition-colors">Study Materials</Link></li>
-            <li><Link to="/live-tests" className="hover:text-blue-600 transition-colors">Live Exams</Link></li>
+          <h2 className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</h2>
+          <ul className="space-y-3 text-sm">
+            <li><Link to="/" className="group inline-flex items-center gap-1 transition-colors hover:text-cyan-300">All Tests <ArrowUpRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></Link></li>
+            <li><Link to="/notes" className="transition-colors hover:text-cyan-300">Study Notes</Link></li>
+            <li><Link to="/live-tests" className="transition-colors hover:text-cyan-300">Live Exams</Link></li>
           </ul>
         </div>
 
-        {/* Legal & Compliance (Required for Gateway Approval) */}
         <div>
-          <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-4">Legal & Compliance</h4>
-          <ul className="space-y-2.5 text-xs">
-            <li><Link to="/terms" className="hover:text-blue-600 transition-colors">Terms & Conditions</Link></li>
-            <li><Link to="/privacy" className="hover:text-blue-600 transition-colors">Privacy Policy</Link></li>
-            <li><Link to="/refund" className="hover:text-blue-600 transition-colors">Refund & Cancellation</Link></li>
+          <h2 className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Legal & Compliance</h2>
+          <ul className="space-y-3 text-sm">
+            <li><Link to="/terms" className="transition-colors hover:text-cyan-300">Terms &amp; Conditions</Link></li>
+            <li><Link to="/privacy" className="transition-colors hover:text-cyan-300">Privacy Policy</Link></li>
+            <li><Link to="/refund" className="transition-colors hover:text-cyan-300">Refund &amp; Cancellation</Link></li>
+            <li><Link to="/contact" className="transition-colors hover:text-cyan-300">Contact Us</Link></li>
           </ul>
         </div>
 
-        {/* Contact Support */}
-        <div className="space-y-2.5 text-xs">
-          <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider mb-4">Support & Contact</h4>
-          <p className="text-slate-500">Email: <span className="text-slate-800 font-medium">support@rankdon.com</span></p>
-          <p className="text-slate-500">Phone: <span className="text-slate-800 font-medium">+91 XXXXX XXXXX</span></p>
-          <div className="pt-1">
-            <Link to="/contact" className="text-blue-600 font-semibold hover:underline inline-flex items-center gap-1">
-              View Full Contact Details →
-            </Link>
+        <div>
+          <h2 className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Support &amp; Contact</h2>
+          <div className="space-y-3 text-sm">
+            <a href="mailto:support@rankdon.in" className="flex items-start gap-2.5 transition-colors hover:text-cyan-300">
+              <Mail className="mt-0.5 size-4 shrink-0 text-cyan-400" />
+              <span>support@rankdon.in</span>
+            </a>
+            <a href="tel:+919541405230" className="flex items-start gap-2.5 transition-colors hover:text-cyan-300">
+              <Phone className="mt-0.5 size-4 shrink-0 text-cyan-400" />
+              <span>+91 9541405230</span>
+            </a>
+            <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3 text-xs leading-5 text-slate-400">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-400" />
+              <span>Secured via RBI-authorized gateway partners.</span>
+            </div>
           </div>
         </div>
-
       </div>
 
-      {/* Bottom Copyright bar */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-3">
-        <p>© {new Date().getFullYear()} Rankdon. All rights reserved.</p>
-        <p className="text-slate-400">Payments securely processed via RBI-authorized gateway partners.</p>
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-slate-800 px-5 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+        <p>&copy; {new Date().getFullYear()} Rankdon. All rights reserved.</p>
+        <p>Online exam preparation, made more measurable.</p>
       </div>
     </footer>
   );
