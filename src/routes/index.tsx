@@ -32,6 +32,7 @@ import {
 } from "@/components/RankdonPromotions";
 import { isSupabaseUserId } from "@/lib/utils";
 import { loadRazorpayScript } from "@/utils/razorpay";
+import { usePhoneGate } from "@/hooks/use-phone-gate";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -244,6 +245,7 @@ function Home() {
   }, []);
 
   const { user, profile, openAuthModal } = useAuth();
+  const { requirePhone, PhoneGateModal } = usePhoneGate();
 
   const getItemPayableAmount = (item: any): number => {
     if (!item) return 99;
@@ -532,6 +534,7 @@ function Home() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#f8fafc]">
+      <PhoneGateModal />
       {/* Purchase modal */}
       {(purchaseModalOpen || isUnlockModalOpen) && purchaseItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -561,7 +564,9 @@ function Home() {
               </Button>
               <button
                 disabled={isPaymentLoading}
-                onClick={() => completePurchase(getItemPayableAmount(purchaseItem))}
+                onClick={() =>
+                  void requirePhone(() => completePurchase(getItemPayableAmount(purchaseItem)))
+                }
                 className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
               >
                 {isPaymentLoading ? "Processing..." : "Pay with Razorpay & Unlock"}

@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn, isSupabaseUserId } from "@/lib/utils";
+import { usePhoneGate } from "@/hooks/use-phone-gate";
 import {
   readTestSession,
   writeTestSession,
@@ -62,6 +63,7 @@ function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
   const { user, profile: userProfile } = useAuth();
+  const { requirePhone, PhoneGateModal } = usePhoneGate();
   const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
 
   const { data: databaseProfile } = useQuery({
@@ -576,7 +578,9 @@ function TestPage() {
 
   if (!started) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16">
+      <>
+        <PhoneGateModal />
+        <div className="mx-auto max-w-lg px-4 py-16">
         <div className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <Badge variant="secondary">{test.subject}</Badge>
           <h1 className="mt-3 font-display text-2xl font-bold">{test.title}</h1>
@@ -619,29 +623,31 @@ function TestPage() {
             <Button
               className="mt-6 w-full"
               size="lg"
-              onClick={async () => {
-                if (!document.fullscreenElement) {
-                  try {
-                    await document.documentElement.requestFullscreen();
-                  } catch {
-                    toast.error("Fullscreen is required to begin the test.");
-                    return;
+              onClick={() =>
+                void requirePhone(async () => {
+                  if (!document.fullscreenElement) {
+                    try {
+                      await document.documentElement.requestFullscreen();
+                    } catch {
+                      toast.error("Fullscreen is required to begin the test.");
+                      return;
+                    }
                   }
-                }
-                clearTestSession(testId, user?.id);
-                clearTestSession(testId, null);
-                resetTestState();
-                setSecondsLeft(Number(test.duration_minutes ?? 0) * 60);
-                const sectionalEnabled = sectionalTimingEnabled;
-                if (sectionalEnabled) {
-                  const first = sections[0];
-                  const firstDuration = Number(first?.duration_minutes ?? first?.duration ?? 0);
-                  setSectionSecondsLeft(firstDuration > 0 ? firstDuration * 60 : null);
-                } else {
-                  setSectionSecondsLeft(null);
-                }
-                setStarted(true);
-              }}
+                  clearTestSession(testId, user?.id);
+                  clearTestSession(testId, null);
+                  resetTestState();
+                  setSecondsLeft(Number(test.duration_minutes ?? 0) * 60);
+                  const sectionalEnabled = sectionalTimingEnabled;
+                  if (sectionalEnabled) {
+                    const first = sections[0];
+                    const firstDuration = Number(first?.duration_minutes ?? first?.duration ?? 0);
+                    setSectionSecondsLeft(firstDuration > 0 ? firstDuration * 60 : null);
+                  } else {
+                    setSectionSecondsLeft(null);
+                  }
+                  setStarted(true);
+                })
+              }
             >
               Enter Fullscreen to Begin Test
             </Button>
@@ -658,7 +664,8 @@ function TestPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      </>
     );
   }
 
