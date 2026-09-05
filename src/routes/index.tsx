@@ -32,7 +32,7 @@ import {
 } from "@/components/RankdonPromotions";
 import { isSupabaseUserId } from "@/lib/utils";
 import { loadRazorpayScript } from "@/utils/razorpay";
-import { usePhoneGate } from "@/hooks/use-phone-gate";
+import { usePhoneGate, PhoneGateModal } from "@/hooks/use-phone-gate";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -245,7 +245,18 @@ function Home() {
   }, []);
 
   const { user, profile, openAuthModal } = useAuth();
-  const { requirePhone, PhoneGateModal } = usePhoneGate();
+  
+  // Destructured phone gate hook properties safely
+  const { 
+    requirePhone, 
+    isModalOpen, 
+    closeModal, 
+    phoneValue, 
+    setPhoneValue, 
+    handleSavePhone, 
+    phoneError, 
+    isSavingPhone 
+  } = usePhoneGate();
 
   const getItemPayableAmount = (item: any): number => {
     if (!item) return 99;
@@ -534,7 +545,16 @@ function Home() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-[#f8fafc]">
-      <PhoneGateModal />
+      {/* Render the stable Phone Gate Modal */}
+      <PhoneGateModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        phone={phoneValue}
+        setPhone={setPhoneValue}
+        onSave={handleSavePhone}
+        error={phoneError}
+        isSaving={isSavingPhone}
+      />
       {/* Purchase modal */}
       {(purchaseModalOpen || isUnlockModalOpen) && purchaseItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

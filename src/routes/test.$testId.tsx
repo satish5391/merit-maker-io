@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn, isSupabaseUserId } from "@/lib/utils";
-import { usePhoneGate } from "@/hooks/use-phone-gate";
+import { usePhoneGate, PhoneGateModal } from "@/hooks/use-phone-gate";
 import {
   readTestSession,
   writeTestSession,
@@ -63,7 +63,19 @@ function TestPage() {
   const { testId } = Route.useParams();
   const navigate = useNavigate();
   const { user, profile: userProfile } = useAuth();
-  const { requirePhone, PhoneGateModal } = usePhoneGate();
+  
+  // Destructured new hook properties safely
+  const { 
+    requirePhone, 
+    isModalOpen, 
+    closeModal, 
+    phoneValue, 
+    setPhoneValue, 
+    handleSavePhone, 
+    phoneError, 
+    isSavingPhone 
+  } = usePhoneGate();
+  
   const supabaseUserId = isSupabaseUserId(user?.id) ? user.id : null;
 
   const { data: databaseProfile } = useQuery({
@@ -579,7 +591,16 @@ function TestPage() {
   if (!started) {
     return (
       <>
-        <PhoneGateModal />
+        {/* Render the extracted modal component with stable state */}
+        <PhoneGateModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          phone={phoneValue}
+          setPhone={setPhoneValue}
+          onSave={handleSavePhone}
+          error={phoneError}
+          isSaving={isSavingPhone}
+        />
         <div className="mx-auto max-w-lg px-4 py-16">
         <div className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)]">
           <Badge variant="secondary">{test.subject}</Badge>
