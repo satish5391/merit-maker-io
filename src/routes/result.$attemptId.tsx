@@ -79,12 +79,19 @@ function getMetric(
   const answers = parseAnswers(attempt.answers);
   let correct = 0;
   let wrong = 0;
-  for (const question of scopedQuestions) {
-    const answer = answers[question.id];
-    if (answer === undefined) continue;
-    if (answer === question.correct_index) correct += 1;
+  
+  scopedQuestions.forEach((question, index) => {
+    const answer = 
+      answers[question.id] !== undefined ? answers[question.id] :
+      answers[question.question_id] !== undefined ? answers[question.question_id] :
+      answers[index] !== undefined ? answers[index] :
+      answers[String(index)];
+
+    if (answer === undefined) return;
+    if (Number(answer) === Number(question.correct_index)) correct += 1;
     else wrong += 1;
-  }
+  });
+
   const total = scopedQuestions.length;
   const attempted = correct + wrong;
   return {
@@ -208,7 +215,6 @@ function ResultPage() {
       if (error) throw error;
       const list = rawAttempts ?? [];
 
-      // Safe lookup for profile names to avoid Supabase 400 Bad Request joins
       const userIds = Array.from(new Set(list.map((a: any) => a.user_id).filter(Boolean)));
       let profileMap: Record<string, string> = {};
       if (userIds.length > 0) {
@@ -253,7 +259,6 @@ function ResultPage() {
     enabled: Boolean(supabaseUserId && attempt?.test_id),
   });
 
-  // Defensive sections parsing
   const rawSections = (test as any)?.sections;
   const sections = useMemo(() => {
     if (!rawSections) return [] as any[];
@@ -343,7 +348,6 @@ function ResultPage() {
     };
   }, [analysisSection, attempt, questions, sections, sortedAttempts, test]);
 
-  // Loading state
   if (
     isLoadingAttempt ||
     isLoadingTest ||
@@ -366,7 +370,6 @@ function ResultPage() {
     );
   }
 
-  // Error guard
   if (isErrorAttempt || isErrorTest || !attempt || !test) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">

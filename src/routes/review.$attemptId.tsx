@@ -102,7 +102,6 @@ function ReviewPage() {
 
   // default selected section to first available when test loads
   useEffect(() => {
-    // If selectedSectionId is empty or invalid, default to first available section id or name
     const validIds = effectiveSections.map((s) => s.id);
     const validNames = effectiveSections.map((s) => s.name);
     const isValid = selectedSectionId && (selectedSectionId === "all" || validIds.includes(selectedSectionId) || validNames.includes(selectedSectionId));
@@ -135,9 +134,7 @@ function ReviewPage() {
     return safeQuestions.filter((q) => {
       const sid = (q as any).section_id ?? (q as any).section ?? "";
       const sname = (q as any).section ?? "";
-      // match by id or name
       if (sid === activeSection || sname === activeSection) return true;
-      // if activeSection is the first/default, include unassigned questions
       if (activeSection === firstId || activeSection === firstName || activeSection === "default") {
         return sid === "" || sid == null;
       }
@@ -145,14 +142,26 @@ function ReviewPage() {
     });
   }, [safeQuestions, selectedSectionId, effectiveSections]);
 
+  // Helper lookup for answers supporting multiple key formats (UUID, secondary ID, and index)
+  const getSelectedAnswer = (q: any, qi: number) => {
+    const ans = userAnswers;
+    if (!ans) return undefined;
+    const val = 
+      ans[q.id] !== undefined ? ans[q.id] :
+      ans[q.question_id] !== undefined ? ans[q.question_id] :
+      ans[qi] !== undefined ? ans[qi] :
+      ans[String(qi)];
+    return val;
+  };
+
   // mapping for palette and filtering
   const mapped = useMemo(() => {
     return sectionScopedQuestions.map((q, qi: number) => {
-      const selected = userAnswers[q.id];
-      const skipped = selected === undefined;
-      const isCorrect = selected === q.correct_index;
+      const selected = getSelectedAnswer(q, qi);
+      const skipped = selected === undefined || selected === null;
+      const isCorrect = Number(selected) === Number(q.correct_index);
       const status: "correct" | "wrong" | "skipped" = skipped ? "skipped" : isCorrect ? "correct" : "wrong";
-      return { q, qi, status };
+      return { q, qi, status, selected };
     });
   }, [sectionScopedQuestions, userAnswers]);
 
@@ -161,7 +170,6 @@ function ReviewPage() {
   const activeRef = useRef<number | null>(null);
   // --- end hooks/memos ---
 
-  // Early loading / error handling
   if (loadingAttempt) return <div className="mx-auto max-w-3xl px-4 py-16 text-muted-foreground">Loading detailed review...</div>;
   if (errorAttempt || !attempt)
     return (
@@ -197,8 +205,6 @@ function ReviewPage() {
         </div>
       </div>
     );
-
-  
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -301,10 +307,9 @@ function ReviewPage() {
       </div>
 
       <div className="mt-8 space-y-5">
-        {(filtered || []).map(({ q, qi }: { q: any; qi: number }) => {
-          const selected = userAnswers[q.id];
-          const skipped = selected === undefined;
-          const isCorrect = selected === q.correct_index;
+        {(filtered || []).map(({ q, qi, selected }: { q: any; qi: number; selected: any }) => {
+          const skipped = selected === undefined || selected === null;
+          const isCorrect = Number(selected) === Number(q.correct_index);
           const idx = qi + 1;
           return (
             <article id={`question-${idx}`} key={q.id} className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
@@ -321,8 +326,8 @@ function ReviewPage() {
 
               <ul className="mt-4 space-y-2">
                 {(q.options || []).map((opt: any, oi: number) => {
-                  const isAnswer = oi === q.correct_index;
-                  const isPicked = oi === selected;
+                  const isAnswer = oi === Number(q.correct_index);
+                  const isPicked = oi === Number(selected);
                   const wrongPick = isPicked && !isAnswer;
                   return (
                     <li key={oi} className={cn("flex items-start gap-3 rounded-lg border p-3 text-sm", isAnswer && "border-success bg-success/10", wrongPick && "border-destructive bg-destructive/10", !isAnswer && !wrongPick && "border-border bg-background")}>
