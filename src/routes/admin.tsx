@@ -1252,6 +1252,7 @@ function PackagesManager() {
   const [pkgDiscountPrice, setPkgDiscountPrice] = useState<number | "">("");
   const [pkgIsCombo, setPkgIsCombo] = useState(false);
   const [pkgSelectedTests, setPkgSelectedTests] = useState<string[]>([]);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
 
   const { data: packagesData, refetch: refetchPackages } = useQuery({
     queryKey: ["packages-with-links"],
@@ -1262,7 +1263,18 @@ function PackagesManager() {
     },
   });
 
-  const createPackage = useMutation({
+  const resetPackageForm = () => {
+    setEditingPackageId(null);
+    setPkgTitle("");
+    setPkgDescription("");
+    setPkgCategory("General");
+    setPkgPrice("");
+    setPkgDiscountPrice("");
+    setPkgIsCombo(false);
+    setPkgSelectedTests([]);
+  };
+
+  const savePackage = useMutation({
     mutationFn: async () => {
       const payload = {
         title: pkgTitle.trim(),
@@ -1274,33 +1286,59 @@ function PackagesManager() {
         is_active: true,
       };
 
-      const { data: pkg, error } = await (supabase as any)
-        .from("test_packages")
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      const packageId = pkg.id;
+      let packageId = editingPackageId;
+      if (editingPackageId) {
+        const { error } = await (supabase as any)
+          .from("test_packages")
+          .update(payload)
+          .eq("id", editingPackageId);
+        if (error) throw error;
+
+        const { error: delLinksError } = await (supabase as any)
+          .from("package_tests")
+          .delete()
+          .eq("package_id", editingPackageId);
+        if (delLinksError) throw delLinksError;
+      } else {
+        const { data: pkg, error } = await (supabase as any)
+          .from("test_packages")
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        packageId = pkg.id;
+      }
+
       if (pkgSelectedTests.length) {
         const links = pkgSelectedTests.map((tId) => ({ package_id: packageId, test_id: tId }));
         const { error: linkErr } = await (supabase as any).from("package_tests").insert(links);
         if (linkErr) throw linkErr;
       }
-      return pkg;
+      return packageId;
     },
     onSuccess: () => {
-      toast.success("Package created successfully");
-      setPkgTitle("");
-      setPkgDescription("");
-      setPkgCategory("General");
-      setPkgPrice("");
-      setPkgDiscountPrice("");
-      setPkgIsCombo(false);
-      setPkgSelectedTests([]);
+      toast.success(editingPackageId ? "Package updated successfully" : "Package created successfully");
+      resetPackageForm();
       void refetchPackages();
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const editPackage = (pkg: any) => {
+    setEditingPackageId(pkg.id);
+    setPkgTitle(pkg.title ?? "");
+    setPkgDescription(pkg.description ?? "");
+    setPkgCategory(pkg.category ?? "General");
+    setPkgPrice(pkg.price ?? "");
+    setPkgDiscountPrice(pkg.discount_price ?? "");
+    setPkgIsCombo(Boolean(pkg.is_combo));
+    setPkgSelectedTests(
+      (packagesData?.links ?? [])
+        .filter((link: any) => link.package_id === pkg.id)
+        .map((link: any) => link.test_id),
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const deletePackage = useMutation({
     mutationFn: async (id: string) => {
@@ -1312,8 +1350,9 @@ function PackagesManager() {
       const { error } = await (supabase as any).from("test_packages").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       toast.success("Package deleted");
+      if (editingPackageId === id) resetPackageForm();
       void refetchPackages();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1326,7 +1365,12 @@ function PackagesManager() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
             <Package className="size-5 text-blue-600" />
-            <h3 className="font-semibold text-slate-900">Create Test Series Package</h3>
+            <h3 className="font-semibold text-slate-900">{editingPackageId ? "Edit Test Series Package" : "Create Test Series Package"}</h3>
+            {editingPackageId && (
+              <Button variant="ghost" size="sm" onClick={resetPackageForm} className="ml-auto h-7 text-xs text-slate-500 hover:text-slate-900">
+                <X className="mr-1 size-3.5" /> Cancel Edit
+              </Button>
+            )}
           </div>
 
           <div>
@@ -1411,11 +1455,11 @@ function PackagesManager() {
 
           <Button
             size="sm"
-            onClick={() => createPackage.mutate()}
-            disabled={createPackage.isPending}
+            onClick={() => savePackage.mutate()}
+            disabled={savePackage.isPending}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 text-xs font-semibold"
           >
-            {createPackage.isPending ? "Creating..." : "Publish Package"}
+            {savePackage.isPending ? (editingPackageId ? "Updating..." : "Creating...") : editingPackageId ? "Update Package" : "Publish Package"}
           </Button>
         </div>
       </div>
@@ -1443,14 +1487,27 @@ function PackagesManager() {
                     <span className="ml-3 text-slate-500">• {linkedCount} Tests included</span>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  onClick={() => deletePackage.mutate(p.id)}
-                  className="h-8 rounded-lg text-xs"
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => editPackage(p)}
+                    className="h-8 rounded-lg text-xs"
+                    title="Edit package"
+                  >
+                    <Pencil className="size-3.5" />
+                    <span className="sr-only">Edit</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deletePackage.mutate(p.id)}
+                    className="h-8 rounded-lg text-xs"
+                    title="Delete package"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
               </div>
             );
           })

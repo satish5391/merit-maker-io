@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getDefaultProfile, type UserProfile } from "@/lib/user-profile";
 import { isSupabaseUserId } from "@/lib/utils";
@@ -40,6 +40,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const userRef = useRef<User | null>(null);
   const [session, setSession] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setSession(d.session ?? null);
       const nextUser = d.session?.user ?? null;
+      userRef.current = nextUser;
       setUser(nextUser);
       setProfile(null);
       setLoading(false);
@@ -60,9 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextUser = session?.user ?? null;
+      const userChanged = userRef.current?.id !== nextUser?.id;
+      userRef.current = nextUser;
       setSession(session ?? null);
       setUser(nextUser);
-      setProfile(null);
+      if (userChanged) setProfile(null);
       setLoading(false);
     });
 
