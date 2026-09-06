@@ -179,14 +179,24 @@ export default function AuthModal() {
       const { error } = await verifyEmailOtp(targetEmail, code, signupMeta);
       if (error) throw error;
 
-      // 2. Handle Referral Processing Post Sign-Up
-      if (tab === 'signup') {
-        const storedRefCode = localStorage.getItem('rankdon_ref');
-        if (storedRefCode) {
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            
-            if (user) {
+      // 2. Handle Safe Global Referral Processing with Strict Time-Window Check
+      const storedRefCode = localStorage.getItem('rankdon_ref');
+      if (storedRefCode) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (user) {
+            // Ensure account was created within the last 2 minutes and has no referrer yet
+            const createdAt = new Date(user.created_at).getTime();
+            const isBrandNewUser = (Date.now() - createdAt) < 120000;
+
+            const { data: currentProfile } = await (supabase as any)
+              .from('profiles')
+              .select('referred_by')
+              .eq('id', user.id)
+              .single();
+
+            if (currentProfile && !currentProfile.referred_by && isBrandNewUser) {
               // Find referrer by referral code
               const { data: referrer } = await (supabase as any)
                 .from('profiles')
@@ -217,11 +227,11 @@ export default function AuthModal() {
                 ]);
               }
             }
-          } catch (refErr) {
-            console.error('Error processing referral reward:', refErr);
-          } finally {
-            localStorage.removeItem('rankdon_ref');
           }
+        } catch (refErr) {
+          console.error('Error processing referral reward:', refErr);
+        } finally {
+          localStorage.removeItem('rankdon_ref');
         }
       }
 

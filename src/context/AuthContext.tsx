@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const nextUser = session?.user ?? null;
       const userChanged = userRef.current?.id !== nextUser?.id;
       userRef.current = nextUser;
@@ -68,6 +68,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextUser);
       if (userChanged) setProfile(null);
       setLoading(false);
+
+      // Global Referral Processor (Handles Google OAuth and fresh sessions securely)
+      if (session?.user && typeof window !== "undefined") {
+        const storedRefCode = localStorage.getItem("rankdon_ref");
+        if (storedRefCode) {
+          try {
+            const authUser = session.user;
+            const createdAt = new Date(authUser.created_at).getTime();
+            const isBrandNewUser = (Date.now() - createdAt) < 120000; // 2 minutes window
+
+            const { data: currentProfile } = await (supabase as any)
+              .from("profiles")
+              .select("referred_by")
+              .eq("id", authUser.id)
+              .single();
+
+            if (currentProfile && !currentProfile.referred_by && isBrandNewUser) {
+              const { data: referrer } = await (supabase as any)
+                .from("profiles")
+                .select("id, coins")
+                .eq("referral_code", storedRefCode)
+                .single();
+
+              if (referrer && referrer.id !== authUser.id) {
+                await (supabase as any)
+                  .from("profiles")
+                  .update({ 
+                    referred_by: referrer.id, 
+                    coins: 10 
+                  })
+                  .eq("id", authUser.id);
+
+                await (supabase as any)
+                  .from("profiles")
+                  .update({ coins: (referrer.coins || 0) + 10 })
+                  .eq("id", referrer.id);
+
+                await (supabase as any).from("coin_transactions").insert([
+                  { user_id: authUser.id, amount: 10, type: "earned_referral", description: "Bonus coins for signing up via referral" },
+                  { user_id: referrer.id, amount: 10, type: "earned_referral", description: "Referral reward for inviting a friend" }
+                ]);
+              }
+            }
+          } catch (refErr) {
+            console.error("Error processing global referral reward:", refErr);
+          } finally {
+            localStorage.removeItem("rankdon_ref");
+          }
+        }
+      }
     });
 
     return () => {
