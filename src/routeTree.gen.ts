@@ -18,6 +18,7 @@ import { Route as LiveTestsRouteImport } from './routes/live-tests'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReferralsRouteImport } from './routes/referrals'
 import { Route as RefundRouteImport } from './routes/refund'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ResultAttemptIdRouteImport } from './routes/result.$attemptId'
@@ -69,6 +70,11 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReferralsRoute = ReferralsRouteImport.update({
+  id: '/referrals',
+  path: '/referrals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RefundRoute = RefundRouteImport.update({
   id: '/refund',
   path: '/refund',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
+  '/referrals': typeof ReferralsRoute
   '/refund': typeof RefundRoute
   '/terms': typeof TermsRoute
   '/result/$attemptId': typeof ResultAttemptIdRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/privacy'
     | '/profile'
+    | '/referrals'
     | '/refund'
     | '/terms'
     | '/result/$attemptId'
@@ -172,6 +182,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/privacy'
     | '/profile'
+    | '/referrals'
     | '/refund'
     | '/terms'
     | '/result/$attemptId'
@@ -188,6 +199,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/privacy'
     | '/profile'
+    | '/referrals'
     | '/refund'
     | '/terms'
     | '/result/$attemptId'
@@ -205,6 +217,7 @@ export interface RootRouteChildren {
   NotesRoute: typeof NotesRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
+  ReferralsRoute: typeof ReferralsRoute
   RefundRoute: typeof RefundRoute
   TermsRoute: typeof TermsRoute
   ResultAttemptIdRoute: typeof ResultAttemptIdRoute
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/referrals': {
+      id: '/referrals'
+      path: '/referrals'
+      fullPath: '/referrals'
+      preLoaderRoute: typeof ReferralsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/refund': {
       id: '/refund'
       path: '/refund'
@@ -325,6 +345,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotesRoute: NotesRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
+  ReferralsRoute: ReferralsRoute,
   RefundRoute: RefundRoute,
   TermsRoute: TermsRoute,
   ResultAttemptIdRoute: ResultAttemptIdRoute,

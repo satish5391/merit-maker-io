@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TARGET_EXAM_OPTIONS_WITH_LABELS, DEFAULT_TARGET_EXAM } from '@/constants/exams';
 import { useAuth } from '@/context/AuthContext';
+// Import your supabase client instance
+import { supabase } from '@/integrations/supabase/client'; // Adjust path if necessary
 
 export default function AuthModal() {
   const { 
@@ -29,6 +31,15 @@ export default function AuthModal() {
   const [countdown, setCountdown] = useState(90);
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  // 1. Capture referral code from URL and persist in localStorage on load
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const refCode = queryParams.get('ref');
+    if (refCode) {
+      localStorage.setItem('rankdon_ref', refCode.trim().toUpperCase());
+    }
+  }, []);
 
   useEffect(() => {
     setTab(authModalTab);
@@ -168,7 +179,53 @@ export default function AuthModal() {
       const { error } = await verifyEmailOtp(targetEmail, code, signupMeta);
       if (error) throw error;
 
-      toast.success(tab === 'signup' ? `Welcome, ${fullName.trim()}!` : 'Welcome back!');
+      // 2. Handle Referral Processing Post Sign-Up
+      if (tab === 'signup') {
+        const storedRefCode = localStorage.getItem('rankdon_ref');
+        if (storedRefCode) {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (user) {
+              // Find referrer by referral code
+              const { data: referrer } = await (supabase as any)
+                .from('profiles')
+                .select('id, coins')
+                .eq('referral_code', storedRefCode)
+                .single();
+
+              if (referrer && referrer.id !== user.id) {
+                // Update new user's profile with referred_by and give them +10 coins
+                await (supabase as any)
+                  .from('profiles')
+                  .update({ 
+                    referred_by: referrer.id, 
+                    coins: 10 
+                  })
+                  .eq('id', user.id);
+
+                // Increment referrer's coins by +10
+                await (supabase as any)
+                  .from('profiles')
+                  .update({ coins: (referrer.coins || 0) + 10 })
+                  .eq('id', referrer.id);
+
+                // Log transactions for audit history
+                await (supabase as any).from('coin_transactions').insert([
+                  { user_id: user.id, amount: 10, type: 'earned_referral', description: 'Bonus coins for signing up via referral' },
+                  { user_id: referrer.id, amount: 10, type: 'earned_referral', description: 'Referral reward for inviting a friend' }
+                ]);
+              }
+            }
+          } catch (refErr) {
+            console.error('Error processing referral reward:', refErr);
+          } finally {
+            localStorage.removeItem('rankdon_ref');
+          }
+        }
+      }
+
+      toast.success(tab === 'signup' ? `Welcome, ${fullName.trim()}! You got 10 coins!` : 'Welcome back!');
       closeAuthModal();
       resetState();
     } catch (e: any) {
