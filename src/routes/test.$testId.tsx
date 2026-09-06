@@ -64,7 +64,6 @@ function TestPage() {
   const navigate = useNavigate();
   const { user, profile: userProfile } = useAuth();
   
-  // Destructured new hook properties safely
   const { 
     requirePhone, 
     isModalOpen, 
@@ -134,7 +133,6 @@ function TestPage() {
 
   const isLive = Boolean((test as any)?.is_live);
 
-  // Load persisted session on initial mount
   useEffect(() => {
     if (!test || started) return;
     const session = readTestSession(testId, user?.id);
@@ -356,7 +354,6 @@ function TestPage() {
   const sectionalTimingEnabled =
     !isLive && Boolean((test as any)?.sectional_timing || (test as any)?.has_sectional_timing);
 
-  // Periodically persist session state
   const displayedSeconds =
     sectionalTimingEnabled && sectionSecondsLeft !== null ? sectionSecondsLeft : secondsLeft;
   useEffect(() => {
@@ -591,7 +588,6 @@ function TestPage() {
   if (!started) {
     return (
       <>
-        {/* Render the extracted modal component with stable state */}
         <PhoneGateModal
           isOpen={isModalOpen}
           onClose={closeModal}
@@ -737,7 +733,7 @@ function TestPage() {
 
   return (
     <div
-      className="mx-auto max-w-5xl select-none px-4 py-6"
+      className="mx-auto max-w-5xl select-none px-4 py-6 pb-32"
       onContextMenu={(event) => event.preventDefault()}
       onCopy={(event) => event.preventDefault()}
       onCut={(event) => event.preventDefault()}
