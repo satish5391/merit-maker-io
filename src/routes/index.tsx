@@ -14,6 +14,7 @@ import {
   History,
   Sparkles,
   Radio,
+  Coins,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
@@ -322,9 +323,31 @@ function Home() {
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [purchaseItem, setPurchaseItem] = useState<any>(null);
   const [purchaseItemType, setPurchaseItemType] = useState<"test" | "package">("test");
+  const [applyCoins, setApplyCoins] = useState(false);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [packageViewerOpen, setPackageViewerOpen] = useState(false);
   const [packageViewerPackage, setPackageViewerPackage] = useState<any>(null);
+
+  const { data: coinBalance = 0, refetch: refetchCoinBalance } = useQuery({
+    queryKey: ["checkout-coin-balance", resolvedUserId],
+    enabled: Boolean(resolvedUserId),
+    queryFn: async () => {
+      if (!resolvedUserId) return 0;
+      const { data, error } = await (supabase as any)
+        .from("profiles")
+        .select("coins")
+        .eq("id", resolvedUserId)
+        .single();
+      if (error) throw error;
+      return Math.max(0, Number(data?.coins ?? 0));
+    },
+  });
+
+  const packagePrice = purchaseItem ? getItemPayableAmount(purchaseItem) : 0;
+  const maxAllowedDiscount = packagePrice * 0.5;
+  const redeemableCoins = Math.min(coinBalance, maxAllowedDiscount);
+  const coinsApplied = applyCoins ? Math.floor(redeemableCoins) : 0;
+  const finalPayableAmount = Math.max(0, packagePrice - coinsApplied);
 
   const { data: myAttempts = [] } = useQuery({
     queryKey: ["my-attempts", resolvedUserId],
@@ -432,6 +455,7 @@ function Home() {
     }
     setPurchaseItem(item);
     setPurchaseItemType(type);
+    setApplyCoins(false);
     setPurchaseModalOpen(true);
     setIsUnlockModalOpen(true);
   };
@@ -439,14 +463,15 @@ function Home() {
   const closePurchaseModal = () => {
     setPurchaseModalOpen(false);
     setIsUnlockModalOpen(false);
+    setApplyCoins(false);
   };
 
-  const completePurchase = async (amount: number) => {
+  const completePurchase = async () => {
     if (!purchaseItem) return;
 
     try {
       setIsPaymentLoading(true);
-      const effectiveAmount = Number(amount || getItemPayableAmount(purchaseItem) || 99);
+      const effectiveAmount = Number(finalPayableAmount || packagePrice || 99);
 
       if (!user?.id || !isSupabaseUserId(user.id)) {
         throw new Error("Please sign in before completing a purchase.");
@@ -513,9 +538,27 @@ function Home() {
             return;
           }
 
+          if (coinsApplied > 0) {
+            const { data: coinsRedeemed, error: coinRedemptionError } = await (supabase as any).rpc(
+              "redeem_checkout_coins",
+              {
+                p_user_id: activeUserId,
+                p_amount: Math.floor(coinsApplied),
+                p_description: `Coins redeemed for ${purchaseItem.title || "Rankdon purchase"}`,
+              },
+            );
+
+            if (coinRedemptionError || coinsRedeemed !== true) {
+              console.error("Coin redemption error:", coinRedemptionError);
+              toast.error("Payment succeeded, but your coins could not be redeemed. Please contact support.");
+              return;
+            }
+          }
+
           toast.success("Payment successful! Test unlocked.");
           closePurchaseModal();
           await refetchPurchases();
+          await refetchCoinBalance();
         },
         modal: { ondismiss: () => setIsPaymentLoading(false) },
       };
@@ -573,9 +616,29 @@ function Home() {
               </div>
             )}
             <div className="mt-4">
-              <div className="text-sm">Amount</div>
-              <div className="text-2xl font-semibold mt-1">
-                ₹{getItemPayableAmount(purchaseItem)}
+              <div className="flex items-center justify-between text-sm">
+                <span>Original price</span>
+                <span>₹{packagePrice.toFixed(2)}</span>
+              </div>
+              <label className="mt-4 flex cursor-pointer items-center justify-between rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-slate-700">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={applyCoins}
+                    onChange={(event) => setApplyCoins(event.target.checked)}
+                    disabled={coinBalance <= 0 || redeemableCoins <= 0 || isPaymentLoading}
+                    className="h-4 w-4 accent-cyan-600"
+                  />
+                  <span>
+                    <span className="flex items-center gap-1 font-medium"><Coins className="h-4 w-4 text-cyan-600" />Apply coins</span>
+                    <span className="block text-xs text-slate-500">{coinBalance} available, up to 50% of this purchase</span>
+                  </span>
+                </span>
+                <span className="font-semibold text-cyan-700">-{coinsApplied.toFixed(2)} INR</span>
+              </label>
+              <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-lg font-semibold">
+                <span>Final payable</span>
+                <span>₹{finalPayableAmount.toFixed(2)}</span>
               </div>
             </div>
             <div className="mt-6 flex gap-2">
@@ -585,7 +648,7 @@ function Home() {
               <button
                 disabled={isPaymentLoading}
                 onClick={() =>
-                  void requirePhone(() => completePurchase(getItemPayableAmount(purchaseItem)))
+                  void requirePhone(() => completePurchase())
                 }
                 className="w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
               >

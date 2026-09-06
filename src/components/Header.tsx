@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, ChevronDown, GraduationCap, LogOut, Menu, ShieldCheck, UserRound, X } from "lucide-react";
+import { Bell, ChevronDown, Gift, GraduationCap, LogOut, Menu, ShieldCheck, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -195,6 +195,14 @@ export default function Header() {
           >
             Study Notes
           </Link>
+          <Link
+            to="/referrals"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            activeProps={{ className: "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-foreground" }}
+          >
+            <Gift className="h-4 w-4 text-cyan-500" />
+            Refer &amp; Earn
+          </Link>
           {isAdmin && (
             <Link
               to="/admin"
@@ -361,6 +369,7 @@ export default function Header() {
             <Link onClick={() => setMobileMenuOpen(false)} to="/" search={{ tab: "enrolled" }} className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">My Enrolled / Purchased</Link>
             <Link onClick={() => setMobileMenuOpen(false)} to="/attempted-tests" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Attempted Tests</Link>
             <Link onClick={() => setMobileMenuOpen(false)} to="/notes" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Study Notes</Link>
+            <Link onClick={() => setMobileMenuOpen(false)} to="/referrals" className="flex items-center gap-2 rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground"><Gift className="h-4 w-4 text-cyan-500" />Refer &amp; Earn</Link>
             {isAdmin && <Link onClick={() => setMobileMenuOpen(false)} to="/admin" className="rounded-md px-3 py-2.5 text-muted-foreground hover:bg-muted hover:text-foreground">Admin</Link>}
           </div>
         </nav>
