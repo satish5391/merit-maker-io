@@ -15,6 +15,8 @@ import {
   Sparkles,
   Radio,
   Coins,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
@@ -328,6 +330,35 @@ function Home() {
   const [packageViewerOpen, setPackageViewerOpen] = useState(false);
   const [packageViewerPackage, setPackageViewerPackage] = useState<any>(null);
 
+  const { data: packageViewerTests = [], isLoading: isLoadingPackageViewerTests, error: packageViewerTestsError } = useQuery({
+    queryKey: ["package-viewer-tests", packageViewerPackage?.id],
+    enabled: packageViewerOpen && Boolean(packageViewerPackage?.id),
+    queryFn: async () => {
+      const { data: links, error: linksError } = await supabase
+        .from("package_tests")
+        .select("test_id")
+        .eq("package_id", packageViewerPackage.id);
+      if (linksError) throw linksError;
+
+      const testIds = (links ?? []).map((link) => link.test_id);
+      if (testIds.length === 0) return [];
+
+      const { data: linkedTests, error: testsError } = await supabase
+        .from("tests")
+        .select("*")
+        .in("id", testIds);
+      if (testsError) throw testsError;
+
+      return testIds
+        .map((testId) => linkedTests?.find((test) => test.id === testId))
+        .filter(Boolean)
+        .map((test) => ({
+          ...test,
+          questionCount: (tests ?? []).find((item) => item.id === test?.id)?.questionCount,
+        }));
+    },
+  });
+
   const { data: coinBalance = 0, refetch: refetchCoinBalance } = useQuery({
     queryKey: ["checkout-coin-balance", resolvedUserId],
     enabled: Boolean(resolvedUserId),
@@ -578,10 +609,6 @@ function Home() {
   };
 
   const openPackageViewer = (pkg: any) => {
-    if (!user) {
-      openAuthModal && openAuthModal();
-      return;
-    }
     setPackageViewerPackage(pkg);
     setPackageViewerOpen(true);
   };
@@ -661,44 +688,82 @@ function Home() {
 
       {/* Package viewer modal */}
       {packageViewerOpen && packageViewerPackage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-end">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setPackageViewerOpen(false)} />
-          <div className="relative z-10 w-full max-w-2xl h-full bg-white p-6 overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h3 className="font-display text-lg font-semibold">
-                {packageViewerPackage.title} - Included Tests
-              </h3>
-              <Button variant="ghost" onClick={() => setPackageViewerOpen(false)}>
-                Close
-              </Button>
+        <div className="fixed inset-0 z-50 flex items-center justify-end p-0 sm:p-4">
+          <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" onClick={() => setPackageViewerOpen(false)} />
+          <div className="relative z-10 flex h-full w-full max-w-2xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[min(760px,calc(100vh-2rem))] sm:rounded-2xl">
+            <div className="border-b border-slate-200 bg-gradient-to-br from-slate-50 to-white px-6 py-6 sm:px-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">{packageViewerPackage.category}</Badge>
+                    {packageViewerPackage.is_combo && <Badge>Combo Offer</Badge>}
+                  </div>
+                  <h3 className="font-display text-2xl font-semibold tracking-tight text-slate-900">
+                    {packageViewerPackage.title}
+                  </h3>
+                  <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                    {packageViewerPackage.description || "A focused collection of mock tests to help you prepare with confidence."}
+                  </p>
+                </div>
+                <Button variant="ghost" onClick={() => setPackageViewerOpen(false)} aria-label="Close test details">
+                  Close
+                </Button>
+              </div>
             </div>
-            <div className="mt-4 space-y-4">
-              {(packageTests ?? [])
-                .filter((pt: any) => pt.package_id === packageViewerPackage.id)
-                .map((pt: any) => {
-                  const t = (tests ?? []).find((x: any) => x.id === pt.test_id);
-                  if (!t) return null;
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+              <div className="mb-4 flex items-center justify-between">
+                <h4 className="font-semibold text-slate-900">Included tests</h4>
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  {packageViewerTests.length} tests
+                </span>
+              </div>
+              {isLoadingPackageViewerTests && (
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 py-12 text-sm text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading included tests...
+                </div>
+              )}
+              {packageViewerTestsError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  We couldn&apos;t load the included tests right now. Please try again.
+                </div>
+              )}
+              {!isLoadingPackageViewerTests && !packageViewerTestsError && packageViewerTests.length === 0 && (
+                <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
+                  Tests for this series will appear here soon.
+                </div>
+              )}
+              <div className="space-y-3">
+                {packageViewerTests.map((test: any) => {
+                  const unlocked = isTestUnlocked(test) || hasPurchased("package", packageViewerPackage.id);
                   return (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
-                    >
-                      <div>
-                        <div className="font-semibold">{t.title}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {t.questionCount ?? 0} questions • {t.duration_minutes} min
+                    <div key={test.id} className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-slate-900">{test.title}</div>
+                        <div className="mt-1 text-sm text-slate-500">
+                          {test.questionCount ?? "—"} questions <span className="mx-1">•</span> {test.duration_minutes ?? "—"} min
                         </div>
                       </div>
-                      <div>
-                        <Button asChild size="sm">
-                          <Link to="/test/$testId" params={{ testId: t.id }}>
-                            Take Test
-                          </Link>
-                        </Button>
-                      </div>
+                      <Badge variant={unlocked ? "secondary" : "outline"} className={unlocked ? "shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700" : "shrink-0 text-slate-500"}>
+                        {unlocked ? <><CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Available</> : "Included"}
+                      </Badge>
                     </div>
                   );
                 })}
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4 sm:flex-row sm:justify-end sm:px-8">
+              <Button variant="outline" onClick={() => setPackageViewerOpen(false)}>Close</Button>
+              {hasPurchased("package", packageViewerPackage.id) ? (
+                <Button asChild>
+                  <Link to="/test/$testId" params={{ testId: packageViewerTests[0]?.id ?? "" }}>
+                    Access Series
+                  </Link>
+                </Button>
+              ) : (
+                <Button onClick={() => openPurchaseModal(packageViewerPackage, "package")}>
+                  Unlock Series / Buy Now
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -1029,7 +1094,10 @@ function Home() {
                                   {p.includedTests.length} tests included
                                 </div>
                               </div>
-                              <div className="flex flex-col gap-2 items-end">
+                              <div className="flex flex-col items-end gap-2">
+                                <Button size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
+                                  View Included Tests
+                                </Button>
                                 {bought ? (
                                   <Button
                                     size="sm"
@@ -1208,7 +1276,10 @@ function Home() {
                                 {p.includedTests.length} tests included
                               </div>
                             </div>
-                            <div className="flex flex-col gap-2 items-end">
+                            <div className="flex flex-col items-end gap-2">
+                              <Button size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
+                                View Included Tests
+                              </Button>
                               <Button
                                 size="sm"
                                 className="bg-emerald-600 text-white"
