@@ -1040,7 +1040,7 @@ function Home() {
 
               <InlinePromotion ads={advertisements} />
 
-              <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+              <div className="mt-6 grid grid-cols-1 items-stretch gap-5 md:grid-cols-2">
                 {isLoading &&
                   [0, 1].map((i) => <Skeleton key={i} className="h-44 w-full rounded-xl" />)}
 
@@ -1065,7 +1065,7 @@ function Home() {
                         return (
                           <article
                             key={p.id}
-                            className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md"
+                            className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
                           >
                             <div className="flex min-w-0 flex-1 flex-col">
                               <div className="flex flex-wrap items-start gap-2">
@@ -1090,7 +1090,7 @@ function Home() {
                               <div className="mt-2 text-xs text-muted-foreground">
                                 {p.includedTests.length} tests included
                               </div>
-                              <div className="mt-5 flex w-full flex-col gap-2">
+                              <div className="mt-5 flex w-full flex-col gap-2 sm:mt-auto sm:pt-5">
                                 <Button className="w-full" size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
                                   View Included Tests
                                 </Button>
@@ -1243,7 +1243,7 @@ function Home() {
                       return (
                         <article
                           key={p.id}
-                          className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md"
+                          className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
                         >
                           <div className="flex min-w-0 flex-1 flex-col">
                             <div className="flex flex-wrap items-start gap-2">
@@ -1268,7 +1268,7 @@ function Home() {
                             <div className="mt-2 text-xs text-muted-foreground">
                               {p.includedTests.length} tests included
                             </div>
-                            <div className="mt-5 flex w-full flex-col gap-2">
+                            <div className="mt-5 flex w-full flex-col gap-2 sm:mt-auto sm:pt-5">
                               <Button className="w-full" size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
                                 View Included Tests
                               </Button>
