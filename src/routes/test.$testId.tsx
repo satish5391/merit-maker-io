@@ -550,7 +550,9 @@ function TestPage() {
             test.
           </p>
           <Button asChild className="mt-6">
-            <Link to="/">View Test Series &amp; Combos</Link>
+            <Link to="/" search={{ tab: "packages" }}>
+              View Test Series &amp; Combos
+            </Link>
           </Button>
         </div>
       </div>
