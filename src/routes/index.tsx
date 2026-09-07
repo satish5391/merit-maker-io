@@ -1311,10 +1311,18 @@ function Home() {
                       list = tests ?? [];
                     } else if (activeView === "free") {
                       list = (tests ?? []).filter(
-                        (t) =>
-                          (t as any).is_free === true ||
-                          !(t as any).price ||
-                          Number((t as any).price) === 0,
+                        (t) => {
+                          const test = t as any;
+                          const isFree =
+                            test.is_free === true ||
+                            (test.price !== null &&
+                              test.price !== undefined &&
+                              Number(test.price) === 0);
+                          const isPackageOnly =
+                            test.package_only === true || test.access_type === "package_only";
+
+                          return isFree && !isPackageOnly;
+                        },
                       );
                     } else if (activeView === "enrolled") {
                       list = (tests ?? []).filter((t) => unlockedIds.has(String(t.id)));
