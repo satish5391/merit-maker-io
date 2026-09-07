@@ -45,7 +45,7 @@ export function Footer() {
               <Mail className="mt-0.5 size-4 shrink-0 text-cyan-400" />
               <span>support@rankdon.in</span>
             </a>
-            <a href="tel:+919541405230" className="flex items-start gap-2.5 transition-colors hover:text-cyan-300">
+            <a href="tel:+91" className="flex items-start gap-2.5 transition-colors hover:text-cyan-300">
               <Phone className="mt-0.5 size-4 shrink-0 text-cyan-400" />
               <span>+91 9541405230</span>
             </a>
