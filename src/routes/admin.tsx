@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Pencil,
   Plus,
@@ -24,10 +24,14 @@ import {
   Gift,
   KeyRound,
   Check,
+  ImagePlus,
+  Link as LinkIcon,
+  LayoutTemplate,
 } from "lucide-react";
 import {
+  AdVisual,
   DEFAULT_ADVERTISEMENTS,
-  HeroCarousel,
+  PromoStrip,
   type Advertisement,
 } from "@/components/RankdonPromotions";
 import { toast } from "sonner";
@@ -451,7 +455,6 @@ function AdminDashboard() {
       const firstSheet = workbook.Sheets[sheetName];
       if (!firstSheet) throw new Error("Could not read worksheet.");
 
-      // Restore cells where SheetJS isolated leading '=' formulas (.f) and left value (.v) blank
       for (const cellKey of Object.keys(firstSheet)) {
         if (cellKey.startsWith("!")) continue;
         const cell = firstSheet[cellKey];
@@ -475,7 +478,6 @@ function AdminDashboard() {
         return out;
       });
 
-      // 1. Gather all unique section names defined in the CSV
       const fileSectionNames = Array.from(
         new Set(
           normalizedRows
@@ -484,7 +486,6 @@ function AdminDashboard() {
         )
       );
 
-      // 2. Synchronize sections: auto-create sections defined in CSV that do not exist yet
       let activeSections = [...sections];
       if (fileSectionNames.length > 0) {
         const isSingleDefault =
@@ -528,12 +529,10 @@ function AdminDashboard() {
         const optD = String(row["option_d"] ?? "").trim();
         const rawAns = String(row["correct_answer"] ?? "").toLowerCase().trim();
 
-        // Skip completely empty or trailing blank lines
         if (!qText && !optA && !optB && !optC && !optD && !rawAns) {
           return;
         }
 
-        // Validate mandatory fields
         if (!qText || !optA || !optB || !optC || !optD || !rawAns) {
           invalidRows.push(index + 2);
           return;
@@ -668,7 +667,6 @@ function AdminDashboard() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {activeTab === "tests" && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-            {/* Left Column: Create & Edit Test Form */}
             <div className="lg:col-span-6 space-y-6">
               <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -691,7 +689,6 @@ function AdminDashboard() {
                 </div>
 
                 <div className="mt-5 space-y-4">
-                  {/* Title */}
                   <div>
                     <Label htmlFor="title" className="text-xs font-semibold text-slate-700">Test Title</Label>
                     <Input
@@ -703,7 +700,6 @@ function AdminDashboard() {
                     />
                   </div>
 
-                  {/* Category & Subject */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="category" className="text-xs font-semibold text-slate-700">Exam Category</Label>
@@ -735,7 +731,6 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Duration & Marking */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label htmlFor="duration" className="text-xs font-semibold text-slate-700">Duration (Mins)</Label>
@@ -774,7 +769,6 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Cutoff Settings */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label htmlFor="cutoff" className="text-xs font-semibold text-slate-700">Expected Cutoff Score</Label>
@@ -800,7 +794,6 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Test Access & Pricing Box */}
                   <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
                     <Label className="text-xs font-semibold text-slate-800">Test Access Type</Label>
                     <div className="flex flex-wrap gap-2">
@@ -817,420 +810,414 @@ function AdminDashboard() {
                             accessType === item.id
                               ? "bg-blue-600 text-white border-blue-600 shadow-xs"
                               : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                          }`}
+                        }`}
                         >
                           {item.label}
                         </button>
                       ))}
-                    </div>
-
-                    {accessType === "paid" && (
-                      <div className="mt-3 grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
-                        <div>
-                          <Label htmlFor="price" className="text-xs text-slate-600">Original Price (₹)</Label>
-                          <Input
-                            id="price"
-                            type="number"
-                            min={0}
-                            value={price}
-                            onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                            placeholder="e.g. 199"
-                            className="mt-1 h-9 rounded-lg bg-white"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="discountPrice" className="text-xs text-slate-600">Offer Price (₹)</Label>
-                          <Input
-                            id="discountPrice"
-                            type="number"
-                            min={0}
-                            value={discountPrice}
-                            onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                            placeholder="e.g. 99"
-                            className="mt-1 h-9 rounded-lg bg-white"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
-                  {/* Live Test Window */}
-                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
-                    <label className="flex items-center gap-2.5 text-xs font-bold text-cyan-900 cursor-pointer">
+                  {accessType === "paid" && (
+                    <div className="mt-3 grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                      <div>
+                        <Label htmlFor="price" className="text-xs text-slate-600">Original Price (₹)</Label>
+                        <Input
+                          id="price"
+                          type="number"
+                          min={0}
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                          placeholder="e.g. 199"
+                          className="mt-1 h-9 rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="discountPrice" className="text-xs text-slate-600">Offer Price (₹)</Label>
+                        <Input
+                          id="discountPrice"
+                          type="number"
+                          min={0}
+                          value={discountPrice}
+                          onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                          placeholder="e.g. 99"
+                          className="mt-1 h-9 rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
+                  <label className="flex items-center gap-2.5 text-xs font-bold text-cyan-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isLive}
+                      onChange={(e) => {
+                        setIsLive(e.target.checked);
+                      }}
+                      className="size-4 rounded text-blue-600"
+                    />
+                    <span>Enable Live Test Schedule (Time-Bound)</span>
+                  </label>
+
+                  {isLive && (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-3 pt-3 border-t border-cyan-200/60">
+                      <div>
+                        <Label htmlFor="live-start" className="text-[11px] font-semibold text-cyan-900">Window Start</Label>
+                        <Input
+                          id="live-start"
+                          type="datetime-local"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          className="mt-1 h-8 text-xs rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="live-end" className="text-[11px] font-semibold text-cyan-900">Window End</Label>
+                        <Input
+                          id="live-end"
+                          type="datetime-local"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          className="mt-1 h-8 text-xs rounded-lg bg-white"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="result-declaration" className="text-[11px] font-semibold text-cyan-900">Result Declaration</Label>
+                        <Input
+                          id="result-declaration"
+                          type="datetime-local"
+                          value={resultDeclarationTime}
+                          onChange={(e) => setResultDeclarationTime(e.target.value)}
+                          className="mt-1 h-8 text-xs rounded-lg bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Layers className="size-4 text-slate-500" />
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Exam Sections</h4>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setSections((s) => [
+                          ...s,
+                          {
+                            id: `section-${Date.now()}`,
+                            name: `Section ${s.length + 1}`,
+                            subject,
+                            duration_minutes: duration,
+                          },
+                        ])
+                      }
+                      className="h-7 text-xs"
+                    >
+                      <Plus className="mr-1 size-3" /> Add Section
+                    </Button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
                       <input
                         type="checkbox"
-                        checked={isLive}
-                        onChange={(e) => {
-                          setIsLive(e.target.checked);
-                        }}
-                        className="size-4 rounded text-blue-600"
+                        checked={sectionalTiming}
+                        onChange={(e) => setSectionalTiming(e.target.checked)}
+                        className="size-3.5 rounded text-blue-600"
                       />
-                      <span>Enable Live Test Schedule (Time-Bound)</span>
+                      <span>Enforce strict sectional timing timers</span>
                     </label>
 
-                    {isLive && (
-                      <div className="mt-3 grid gap-3 sm:grid-cols-3 pt-3 border-t border-cyan-200/60">
-                        <div>
-                          <Label htmlFor="live-start" className="text-[11px] font-semibold text-cyan-900">Window Start</Label>
-                          <Input
-                            id="live-start"
-                            type="datetime-local"
-                            value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
-                            className="mt-1 h-8 text-xs rounded-lg bg-white"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="live-end" className="text-[11px] font-semibold text-cyan-900">Window End</Label>
-                          <Input
-                            id="live-end"
-                            type="datetime-local"
-                            value={endTime}
-                            onChange={(e) => setEndTime(e.target.value)}
-                            className="mt-1 h-8 text-xs rounded-lg bg-white"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="result-declaration" className="text-[11px] font-semibold text-cyan-900">Result Declaration</Label>
-                          <Input
-                            id="result-declaration"
-                            type="datetime-local"
-                            value={resultDeclarationTime}
-                            onChange={(e) => setResultDeclarationTime(e.target.value)}
-                            className="mt-1 h-8 text-xs rounded-lg bg-white"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Section Configuration */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Layers className="size-4 text-slate-500" />
-                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Exam Sections</h4>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          setSections((s) => [
-                            ...s,
-                            {
-                              id: `section-${Date.now()}`,
-                              name: `Section ${s.length + 1}`,
-                              subject,
-                              duration_minutes: duration,
-                            },
-                          ])
-                        }
-                        className="h-7 text-xs"
-                      >
-                        <Plus className="mr-1 size-3" /> Add Section
-                      </Button>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      <label className="flex items-center gap-2 text-xs text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={sectionalTiming}
-                          onChange={(e) => setSectionalTiming(e.target.checked)}
-                          className="size-3.5 rounded text-blue-600"
+                    {sections.map((s, idx) => (
+                      <div key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs">
+                        <Input
+                          value={s.name}
+                          onChange={(e) =>
+                            setSections((prev) =>
+                              prev.map((ps, i) => (i === idx ? { ...ps, name: e.target.value } : ps)),
+                            )
+                          }
+                          placeholder="Section Name"
+                          className="h-8 bg-white"
                         />
-                        <span>Enforce strict sectional timing timers</span>
-                      </label>
-
-                      {sections.map((s, idx) => (
-                        <div key={s.id} className="flex items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs">
-                          <Input
-                            value={s.name}
-                            onChange={(e) =>
-                              setSections((prev) =>
-                                prev.map((ps, i) => (i === idx ? { ...ps, name: e.target.value } : ps)),
-                              )
-                            }
-                            placeholder="Section Name"
-                            className="h-8 bg-white"
-                          />
-                          <Input
-                            value={s.subject ?? subject}
-                            onChange={(e) =>
-                              setSections((prev) =>
-                                prev.map((ps, i) => (i === idx ? { ...ps, subject: e.target.value } : ps)),
-                              )
-                            }
-                            placeholder="Subject"
-                            className="h-8 bg-white"
-                          />
-                          <Input
-                            type="number"
-                            value={s.duration_minutes}
-                            onChange={(e) =>
-                              setSections((prev) =>
-                                prev.map((ps, i) =>
-                                  i === idx ? { ...ps, duration_minutes: Number(e.target.value) } : ps,
-                                ),
-                              )
-                            }
-                            placeholder="Mins"
-                            className="h-8 w-20 bg-white"
-                          />
-                          {sections.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSections((prev) => prev.filter((_, i) => i !== idx))}
-                              className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Question Editor Area */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-slate-800 text-sm">Question Bank ({questions.length})</h3>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={downloadBulkTemplate}
-                          className="h-7 text-xs"
-                        >
-                          <Download className="mr-1 size-3" /> Template
-                        </Button>
-                        <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium hover:bg-slate-50">
-                          <Upload className="mr-1 size-3" /> Import Excel/CSV
-                          <input
-                            type="file"
-                            accept=".csv,.xlsx"
-                            className="sr-only"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0];
-                              if (file) void importBulkQuestions(file);
-                              event.currentTarget.value = "";
-                            }}
-                          />
-                        </label>
+                        <Input
+                          value={s.subject ?? subject}
+                          onChange={(e) =>
+                            setSections((prev) =>
+                              prev.map((ps, i) => (i === idx ? { ...ps, subject: e.target.value } : ps)),
+                            )
+                          }
+                          placeholder="Subject"
+                          className="h-8 bg-white"
+                        />
+                        <Input
+                          type="number"
+                          value={s.duration_minutes}
+                          onChange={(e) =>
+                            setSections((prev) =>
+                              prev.map((ps, i) =>
+                                i === idx ? { ...ps, duration_minutes: Number(e.target.value) } : ps,
+                              ),
+                            )
+                          }
+                          placeholder="Mins"
+                          className="h-8 w-20 bg-white"
+                        />
+                        {sections.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSections((prev) => prev.filter((_, i) => i !== idx))}
+                            className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        )}
                       </div>
-                    </div>
+                    ))}
+                </div>
+              </div>
 
-                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                      {questions.map((q, i) => (
-                        <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs space-y-2.5">
-                          {/* Question Card Header with Section Selector */}
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                              <span className="font-bold text-slate-700">Question #{i + 1}</span>
-
-                              <select
-                                value={q.sectionId || sections[0]?.id || "section-default"}
-                                onChange={(e) => patch(i, { sectionId: e.target.value })}
-                                className="h-7 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 outline-none focus:border-blue-500"
-                              >
-                                {sections.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.name || "Untitled Section"}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {questions.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
-                                className="text-slate-400 hover:text-rose-600"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
-                            )}
-                          </div>
-
-                          <Textarea
-                            value={q.body}
-                            onChange={(e) => patch(i, { body: e.target.value })}
-                            placeholder="Type the question content or problem statement here..."
-                            className="bg-white min-h-[60px]"
-                          />
-
-                          <div className="grid grid-cols-2 gap-2">
-                            {q.options.map((opt, oi) => (
-                              <div
-                                key={oi}
-                                className={`flex items-center gap-2 rounded-lg border p-1.5 transition-all bg-white ${
-                                  q.correct_index === oi ? "border-emerald-500 ring-1 ring-emerald-500/20" : "border-slate-200"
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name={`correct-${i}`}
-                                  checked={q.correct_index === oi}
-                                  onChange={() => patch(i, { correct_index: oi })}
-                                  className="size-3.5 accent-emerald-600"
-                                />
-                                <input
-                                  value={opt}
-                                  onChange={(e) =>
-                                    patch(i, {
-                                      options: q.options.map((o, idx) => (idx === oi ? e.target.value : o)),
-                                    })
-                                  }
-                                  placeholder={`Option ${String.fromCharCode(65 + oi)}`}
-                                  className="w-full text-xs outline-none bg-transparent"
-                                />
-                              </div>
-                            ))}
-                          </div>
-
-                          <div>
-                            <Textarea
-                              value={q.explanation}
-                              onChange={(e) => patch(i, { explanation: e.target.value })}
-                              placeholder="Step-by-step solution / explanation (Optional)..."
-                              className="bg-white min-h-[50px] text-xs"
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-800 text-sm">Question Bank ({questions.length})</h3>
+                  <div className="flex gap-2">
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setQuestions((prev) => [
-                          ...prev,
-                          { ...emptyDraft(), sectionId: String(sections[0]?.id || "section-default") },
-                        ])
-                      }
-                      className="w-full text-xs"
+                      onClick={downloadBulkTemplate}
+                      className="h-7 text-xs"
                     >
-                      <Plus className="mr-1 size-3.5" /> Add Another Question
+                      <Download className="mr-1 size-3" /> Template
                     </Button>
+                    <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium hover:bg-slate-50">
+                      <Upload className="mr-1 size-3" /> Import Excel/CSV
+                      <input
+                        type="file"
+                        accept=".csv,.xlsx"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) void importBulkQuestions(file);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
                   </div>
-
-                  <Button
-                    onClick={() => saveTest.mutate()}
-                    disabled={saveTest.isPending}
-                    className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-xs"
-                  >
-                    {saveTest.isPending
-                      ? "Saving..."
-                      : editingId
-                        ? "Update Test"
-                        : "Save & Publish Mock Test"}
-                  </Button>
                 </div>
-              </section>
-            </div>
 
-            {/* Right Column: Published Tests Inventory */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
-                  <Input
-                    placeholder="Search tests by title, subject or exam..."
-                    value={testSearch}
-                    onChange={(e) => setTestSearch(e.target.value)}
-                    className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-slate-50 focus:bg-white"
-                  />
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                  {questions.map((q, i) => (
+                    <div key={i} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs space-y-2.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="font-bold text-slate-700">Question #{i + 1}</span>
+
+                          <select
+                            value={q.sectionId || sections[0]?.id || "section-default"}
+                            onChange={(e) => patch(i, { sectionId: e.target.value })}
+                            className="h-7 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 outline-none focus:border-blue-500"
+                          >
+                            {sections.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name || "Untitled Section"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {questions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setQuestions((prev) => prev.filter((_, idx) => idx !== i))}
+                            className="text-slate-400 hover:text-rose-600"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      <Textarea
+                        value={q.body}
+                        onChange={(e) => patch(i, { body: e.target.value })}
+                        placeholder="Type the question content or problem statement here..."
+                        className="bg-white min-h-[60px]"
+                      />
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {q.options.map((opt, oi) => (
+                          <div
+                            key={oi}
+                            className={`flex items-center gap-2 rounded-lg border p-1.5 transition-all bg-white ${
+                              q.correct_index === oi ? "border-emerald-500 ring-1 ring-emerald-500/20" : "border-slate-200"
+                          }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`correct-${i}`}
+                              checked={q.correct_index === oi}
+                              onChange={() => patch(i, { correct_index: oi })}
+                              className="size-3.5 accent-emerald-600"
+                            />
+                            <input
+                              value={opt}
+                              onChange={(e) =>
+                                patch(i, {
+                                  options: q.options.map((o, idx) => (idx === oi ? e.target.value : o)),
+                                })
+                              }
+                              placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                              className="w-full text-xs outline-none bg-transparent"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div>
+                        <Textarea
+                          value={q.explanation}
+                          onChange={(e) => patch(i, { explanation: e.target.value })}
+                          placeholder="Step-by-step solution / explanation (Optional)..."
+                          className="bg-white min-h-[50px] text-xs"
+                        />
+                      </div>
+                  </div>
+                  ))}
                 </div>
-                <Badge variant="secondary" className="px-3 py-1 font-semibold">
-                  {filteredTests.length} Tests
-                </Badge>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setQuestions((prev) => [
+                      ...prev,
+                      { ...emptyDraft(), sectionId: String(sections[0]?.id || "section-default") },
+                    ])
+                  }
+                  className="w-full text-xs"
+                >
+                  <Plus className="mr-1 size-3.5" /> Add Another Question
+                </Button>
               </div>
 
-              {isLoadingTests ? (
-                <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
-                  <span className="size-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                </div>
-              ) : filteredTests.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
-                  No mock tests match your search criteria.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredTests.map((t) => {
-                    const isPaid = (t as any).is_free === false || (t as any).access_type === "paid";
-                    return (
-                      <div
-                        key={t.id}
-                        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-all hover:border-slate-300"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="space-y-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold text-slate-900">{t.title}</span>
-                              {isPaid ? (
-                                <Badge className="bg-rose-50 text-rose-700 border-rose-200">
-                                  PAID ₹{(t as any).discount_price ?? (t as any).price ?? "—"}
-                                </Badge>
-                              ) : (
-                                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">FREE</Badge>
-                              )}
-                              <Badge variant="outline">{t.category}</Badge>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                              <span className="flex items-center gap-1">
-                                <Clock className="size-3.5 text-slate-400" /> {t.duration_minutes} mins
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="size-3.5 text-emerald-600" /> +{t.positive_marks} / -{t.negative_marks}
-                              </span>
-                              <span className="text-slate-400">• Subject: {t.subject}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => void startEdit(t.id)}
-                              className="h-8 rounded-lg text-xs"
-                            >
-                              <Pencil className="mr-1 size-3" /> Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => deleteTest.mutate(t.id)}
-                              className="h-8 w-8 p-0 rounded-lg"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Expandable Question Preview */}
-                        <div className="mt-3 border-t border-slate-100 pt-3">
-                          <Accordion type="single" collapsible>
-                            <AccordionItem value="qs" className="border-none">
-                              <AccordionTrigger className="py-0 text-xs text-blue-600 hover:no-underline">
-                                View Questions for this Test
-                              </AccordionTrigger>
-                              <AccordionContent className="pt-2">
-                                <QuestionList testId={t.id} />
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              <Button
+                onClick={() => saveTest.mutate()}
+                disabled={saveTest.isPending}
+                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-xs"
+              >
+                {saveTest.isPending
+                  ? "Saving..."
+                  : editingId
+                    ? "Update Test"
+                    : "Save & Publish Mock Test"}
+              </Button>
             </div>
+            </section>
           </div>
+
+          <div className="lg:col-span-6 space-y-4">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
+                <Input
+                  placeholder="Search tests by title, subject or exam..."
+                  value={testSearch}
+                  onChange={(e) => setTestSearch(e.target.value)}
+                  className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-slate-50 focus:bg-white"
+                />
+              </div>
+              <Badge variant="secondary" className="px-3 py-1 font-semibold">
+                {filteredTests.length} Tests
+              </Badge>
+            </div>
+
+            {isLoadingTests ? (
+              <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
+                <span className="size-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              </div>
+            ) : filteredTests.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+                No mock tests match your search criteria.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredTests.map((t) => {
+                  const isPaid = (t as any).is_free === false || (t as any).access_type === "paid";
+                  return (
+                    <div
+                      key={t.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-all hover:border-slate-300"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-slate-900">{t.title}</span>
+                            {isPaid ? (
+                              <Badge className="bg-rose-50 text-rose-700 border-rose-200">
+                                PAID ₹{(t as any).discount_price ?? (t as any).price ?? "—"}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">FREE</Badge>
+                          )}
+                            <Badge variant="outline">{t.category}</Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Clock className="size-3.5 text-slate-400" /> {t.duration_minutes} mins
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="size-3.5 text-emerald-600" /> +{t.positive_marks} / -{t.negative_marks}
+                            </span>
+                            <span className="text-slate-400">• Subject: {t.subject}</span>
+                          </div>
+                        </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void startEdit(t.id)}
+                          className="h-8 rounded-lg text-xs"
+                        >
+                          <Pencil className="mr-1 size-3" /> Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteTest.mutate(t.id)}
+                          className="h-8 w-8 p-0 rounded-lg"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      <Accordion type="single" collapsible>
+                        <AccordionItem value="qs" className="border-none">
+                          <AccordionTrigger className="py-0 text-xs text-blue-600 hover:no-underline">
+                            View Questions for this Test
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-2">
+                            <QuestionList testId={t.id} />
+                          </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          </div>
+        </div>
         )}
 
         {activeTab === "packages" && <PackagesManager />}
@@ -1238,7 +1225,7 @@ function AdminDashboard() {
         {activeTab === "ads" && <AdvertisementManager />}
         {activeTab === "users" && <UserManagement />}
       </div>
-    </div>
+  </div>
   );
 }
 
@@ -1360,7 +1347,6 @@ function PackagesManager() {
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-      {/* Create Package Form */}
       <div className="lg:col-span-5">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -1444,13 +1430,13 @@ function PackagesManager() {
                       setPkgSelectedTests((prev) =>
                         e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id),
                       )
-                    }
-                    className="size-3.5 rounded text-blue-600"
-                  />
-                  <span className="truncate text-slate-800 font-medium">{t.title}</span>
-                </label>
+                  }
+                  className="size-3.5 rounded text-blue-600"
+                />
+                <span className="truncate text-slate-800 font-medium">{t.title}</span>
+              </label>
               ))}
-            </div>
+          </div>
           </div>
 
           <Button
@@ -1461,10 +1447,9 @@ function PackagesManager() {
           >
             {savePackage.isPending ? (editingPackageId ? "Updating..." : "Creating...") : editingPackageId ? "Update Package" : "Publish Package"}
           </Button>
-        </div>
+      </div>
       </div>
 
-      {/* Existing Packages List */}
       <div className="lg:col-span-7 space-y-3">
         <h4 className="font-bold text-slate-900 text-sm">Published Series & Combos</h4>
         {packagesData?.packages.length ? (
@@ -1487,37 +1472,37 @@ function PackagesManager() {
                     <span className="ml-3 text-slate-500">• {linkedCount} Tests included</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => editPackage(p)}
-                    className="h-8 rounded-lg text-xs"
-                    title="Edit package"
-                  >
-                    <Pencil className="size-3.5" />
-                    <span className="sr-only">Edit</span>
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => deletePackage.mutate(p.id)}
-                    className="h-8 rounded-lg text-xs"
-                    title="Delete package"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => editPackage(p)}
+                  className="h-8 rounded-lg text-xs"
+                  title="Edit package"
+                >
+                  <Pencil className="size-3.5" />
+                  <span className="sr-only">Edit</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => deletePackage.mutate(p.id)}
+                  className="h-8 rounded-lg text-xs"
+                  title="Delete package"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
               </div>
-            );
-          })
-        ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
-            No package series created yet.
-          </div>
-        )}
-      </div>
+            </div>
+          );
+        })
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+          No package series created yet.
+        </div>
+      )}
     </div>
+  </div>
   );
 }
 
@@ -1527,7 +1512,7 @@ const emptyAd = (): Omit<Advertisement, "id" | "created_at"> => ({
   badge_text: "Featured",
   image_url: "",
   cta_text: "Explore Now",
-  cta_link: "/",
+  cta_link: "https://",
   placement: "hero_carousel",
   is_external: false,
   is_active: true,
@@ -1540,6 +1525,8 @@ function AdvertisementManager() {
   const qc = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyAd());
+  const [uploading, setUploading] = useState(false);
+
   const { data: ads = [] } = useQuery({
     queryKey: ["advertisements", "admin"],
     queryFn: async () => {
@@ -1552,19 +1539,54 @@ function AdvertisementManager() {
     },
   });
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `ads/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("public-assets")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("public-assets")
+        .getPublicUrl(filePath);
+
+      setForm((current) => ({
+        ...current,
+        image_url: publicUrlData.publicUrl,
+        banner_type: "direct_image",
+      }));
+      toast.success("Banner image uploaded successfully!");
+    } catch (err: any) {
+      console.error("Upload failed:", err.message);
+      toast.error("Image upload failed. You can paste a direct URL instead.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const saveAd = useMutation({
     mutationFn: async () => {
       if (form.banner_type === "direct_image") {
         if (!form.image_url.trim() || !form.cta_link.trim())
-          throw new Error("Banner image and destination link are required");
+          throw new Error("Banner image graphic and destination link are required");
       } else if (!form.title.trim() || !form.cta_link.trim()) {
         throw new Error("Title and CTA link are required");
       }
       const payload = {
         ...form,
-        title: form.title.trim(),
+        title: form.title.trim() || "Promotional Banner",
         subtitle: form.subtitle?.trim() || null,
         cta_link: form.cta_link.trim(),
+        banner_type: form.image_url ? "direct_image" : form.banner_type,
       };
       const result = editingId
         ? await (supabase as any).from("advertisements").update(payload).eq("id", editingId)
@@ -1604,24 +1626,61 @@ function AdvertisementManager() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const startEditAd = (ad: Advertisement) => {
+    setEditingId(ad.id);
+    setForm({
+      title: ad.title || "",
+      subtitle: ad.subtitle || "",
+      badge_text: ad.badge_text || "Featured",
+      image_url: ad.image_url || "",
+      cta_text: ad.cta_text || "Explore Now",
+      cta_link: ad.cta_link || "/",
+      placement: ad.placement || "hero_carousel",
+      is_external: Boolean(ad.is_external),
+      is_active: Boolean(ad.is_active),
+      banner_type: ad.banner_type || "standard",
+      gradient_theme: ad.gradient_theme || "blue_glow",
+      display_order: ad.display_order || 0,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const update = (key: keyof typeof form, value: string | boolean | number) =>
     setForm((current) => ({ ...current, [key]: value }));
+
   const previewAd = { ...form, id: "preview", created_at: "" } as Advertisement;
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="font-semibold text-slate-900">
-              {editingId ? "Edit Promotion Banner" : "New Campaign Banner"}
-            </h3>
+            <div className="flex items-center gap-2">
+              <Sparkles className="size-5 text-indigo-600" />
+              <h3 className="font-semibold text-slate-900">
+                {editingId ? "Edit Promotion Banner" : "New Campaign & Paid Promotion Banner"}
+              </h3>
+            </div>
             <Megaphone className="size-4 text-blue-600" />
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2 text-xs">
             <div className="sm:col-span-2 space-y-1">
-              <Label>Banner Title</Label>
+              <Label className="font-bold text-slate-700">Target Banner Slot / Placement</Label>
+              <select
+                value={form.placement}
+                onChange={(e) => update("placement", e.target.value)}
+                className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700"
+              >
+                <option value="hero_carousel">Main Hero Carousel (Center Left)</option>
+                <option value="sidebar_banner">Sidebar Card / Banner (Right Section)</option>
+                <option value="inline_card">Inline Card (Feed Section)</option>
+                <option value="floating_bar">Top Floating Ticker / Bar</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="font-bold text-slate-700">Banner Title / Sponsor Name</Label>
               <Input
                 value={form.title}
                 onChange={(e) => update("title", e.target.value)}
@@ -1629,8 +1688,19 @@ function AdvertisementManager() {
                 className="h-9"
               />
             </div>
+
+            <div className="space-y-1">
+              <Label className="font-bold text-slate-700">Badge Text</Label>
+              <Input
+                value={form.badge_text}
+                onChange={(e) => update("badge_text", e.target.value)}
+                placeholder="Trending / Sponsored"
+                className="h-9"
+              />
+            </div>
+
             <div className="sm:col-span-2 space-y-1">
-              <Label>Subtitle / Secondary Offer Text</Label>
+              <Label className="font-bold text-slate-700">Subtitle / Offer Description</Label>
               <Textarea
                 value={form.subtitle ?? ""}
                 onChange={(e) => update("subtitle", e.target.value)}
@@ -1638,29 +1708,83 @@ function AdvertisementManager() {
                 className="min-h-[50px]"
               />
             </div>
-            <div className="space-y-1">
-              <Label>Target Link / Tab</Label>
-              <Input
-                value={form.cta_link}
-                onChange={(e) => update("cta_link", e.target.value)}
-                placeholder="/?tab=packages"
-                className="h-9"
-              />
+
+            {/* Edited Creative Graphic upload */}
+            <div className="sm:col-span-2 space-y-1">
+              <Label className="font-bold text-slate-700">
+                Edited Creative Graphic Banner (Image Upload or Direct URL)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://example.com/banner-graphic.png"
+                  value={form.image_url}
+                  onChange={(e) => {
+                    update("image_url", e.target.value);
+                    if (e.target.value.trim()) update("banner_type", "direct_image");
+                  }}
+                  className="h-9 flex-1"
+                />
+                <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-medium text-xs flex items-center gap-1.5 transition">
+                  <ImagePlus className="size-4" />
+                  <span>{uploading ? "Uploading..." : "Upload"}</span>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                </label>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Uploading an image automatically switches the banner mode to direct image display.
+              </p>
             </div>
+
             <div className="space-y-1">
-              <Label>Button Text</Label>
+              <Label className="font-bold text-slate-700">Destination Link (Internal or External Sponsor)</Label>
+              <div className="relative">
+                <LinkIcon className="absolute left-3 top-2.5 size-4 text-slate-400" />
+                <Input
+                  value={form.cta_link}
+                  onChange={(e) => update("cta_link", e.target.value)}
+                  placeholder="https://external-sponsor.com or /?tab=packages"
+                  className="pl-9 h-9 font-mono text-[11px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="font-bold text-slate-700">Button / CTA Text</Label>
               <Input
                 value={form.cta_text}
                 onChange={(e) => update("cta_text", e.target.value)}
-                placeholder="Unlock Now"
+                placeholder="Explore Now"
                 className="h-9"
               />
             </div>
+
+            <div className="sm:col-span-2 flex items-center gap-6 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.is_external}
+                  onChange={(e) => update("is_external", e.target.checked)}
+                  className="size-4 rounded text-blue-600"
+                />
+                <span className="font-medium text-slate-700">Open link in new tab (External Paid Sponsor)</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.banner_type === "direct_image"}
+                  onChange={(e) => update("banner_type", e.target.checked ? "direct_image" : "standard")}
+                  className="size-4 rounded text-blue-600"
+                />
+                <span className="font-medium text-slate-700">Direct Image Mode</span>
+              </label>
+            </div>
           </div>
 
-          <div className="mt-4 flex gap-2">
-            <Button onClick={() => saveAd.mutate()} disabled={saveAd.isPending} size="sm" className="bg-blue-600">
-              {saveAd.isPending ? "Saving..." : editingId ? "Update Campaign" : "Publish Campaign"}
+          <div className="mt-5 flex gap-2 pt-3 border-t border-slate-100">
+            <Button onClick={() => saveAd.mutate()} disabled={saveAd.isPending} size="sm" className="bg-blue-600 hover:bg-blue-700">
+              {saveAd.isPending ? "Saving..." : editingId ? "Update Campaign" : "Publish Campaign Banner"}
             </Button>
             {editingId && (
               <Button
@@ -1680,36 +1804,76 @@ function AdvertisementManager() {
         {/* Live Preview */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-800 text-sm">Live Banner Preview</h3>
+            <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-1.5">
+              <LayoutTemplate className="size-4 text-slate-500" /> Live Banner Preview
+            </h3>
             <Badge variant="secondary">Dynamic</Badge>
           </div>
-          <HeroCarousel ads={[previewAd]} />
+          <div className="rounded-2xl border border-slate-200 bg-slate-900 p-4 shadow-sm">
+            {form.placement === "hero_carousel" && (
+              <AdVisual ad={previewAd} className="min-h-[320px] rounded-2xl" />
+            )}
+            {form.placement === "sidebar_banner" && (
+              <div className="mx-auto max-w-sm overflow-hidden rounded-2xl">
+                <AdVisual ad={previewAd} className="min-h-[210px]" />
+              </div>
+            )}
+            {form.placement === "inline_card" && (
+              <div className="overflow-hidden rounded-2xl border border-cyan-200/20">
+                <AdVisual ad={previewAd} className="min-h-[200px]" />
+              </div>
+            )}
+            {form.placement === "floating_bar" && (
+              <div className="-mx-4 -mb-4 overflow-hidden rounded-b-2xl">
+                <PromoStrip ads={[previewAd]} />
+              </div>
+            )}
+          </div>
         </section>
       </div>
 
       {/* Published Ads List */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="font-semibold text-slate-900 text-sm mb-4">Active Campaign Records</h3>
-        <div className="space-y-2">
-          {ads.map((ad) => (
-            <div key={ad.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-xs bg-slate-50">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-800">{ad.title}</span>
-                  <Badge variant={ad.is_active ? "default" : "outline"}>{ad.is_active ? "Active" : "Paused"}</Badge>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-slate-900 text-sm">Active Campaign Records</h3>
+            <p className="mt-1 text-xs text-slate-500">Manage placement, visibility, and destination links.</p>
+          </div>
+          <Badge variant="secondary" className="shrink-0">{ads.length} {ads.length === 1 ? "campaign" : "campaigns"}</Badge>
+        </div>
+        <div className="space-y-3">
+          {ads.length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">No campaigns or advertisements published yet.</p>
+          ) : (
+            ads.map((ad) => (
+              <div key={ad.id} className="group rounded-xl border border-slate-200 bg-gradient-to-r from-white to-slate-50/80 p-4 text-xs shadow-sm transition duration-200 hover:border-blue-200 hover:shadow-md">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-2.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className="min-w-0 max-w-full truncate font-bold text-slate-800 sm:max-w-[20rem]">{ad.title || "Image Banner"}</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge className={ad.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>{ad.is_active ? "Active" : "Paused"}</Badge>
+                        <Badge variant="outline" className="border-blue-200 bg-blue-50/60 text-[10px] text-blue-700">{ad.placement.replaceAll("_", " ")}</Badge>
+                        <Badge variant="outline" className="border-violet-200 bg-violet-50/60 text-[10px] text-violet-700">{ad.banner_type === "direct_image" ? "Direct Image" : "Standard"}</Badge>
+                      </div>
+                    </div>
+                    <span className="block max-w-full break-all font-mono text-[11px] leading-5 text-slate-500 sm:line-clamp-1">{ad.cta_link}</span>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                  <Button size="sm" variant="outline" onClick={() => startEditAd(ad)} className="h-8 border-slate-200 bg-white text-xs">
+                    Edit
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => toggleAd.mutate(ad)} className="h-8 border-slate-200 bg-white text-xs">
+                    {ad.is_active ? "Pause" : "Activate"}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => deleteAd.mutate(ad.id)} className="h-8 text-xs">
+                    Delete
+                  </Button>
+                  </div>
                 </div>
-                <span className="text-slate-500 mt-1 block">{ad.cta_link}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => toggleAd.mutate(ad)} className="h-7 text-xs">
-                  {ad.is_active ? "Pause" : "Activate"}
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => deleteAd.mutate(ad.id)} className="h-7 text-xs">
-                  Delete
-                </Button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </section>
     </div>
@@ -1928,7 +2092,6 @@ function UserManagement() {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
-      {/* Header & Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-bold text-slate-900">Student & Learner Accounts</h3>
@@ -1955,7 +2118,6 @@ function UserManagement() {
         </div>
       </div>
 
-      {/* Selected Action Floating Strip */}
       {selected.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 p-3 shadow-xs">
           <span className="mr-auto text-xs font-bold text-blue-900 flex items-center gap-1.5">
@@ -1996,7 +2158,6 @@ function UserManagement() {
         </div>
       )}
 
-      {/* Full Users Table */}
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="w-full text-left text-xs">
           <thead className="bg-slate-50/80 text-slate-600 font-semibold border-b border-slate-200">
@@ -2142,7 +2303,6 @@ function UserManagement() {
         </table>
       </div>
 
-      {/* Pagination Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 pt-2">
         <span>
           Showing {totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
@@ -2170,7 +2330,6 @@ function UserManagement() {
         </div>
       </div>
 
-      {/* Full Modal Layer */}
       {action && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
@@ -2428,7 +2587,6 @@ function StudyMaterialsManager() {
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-      {/* Creation / Edit Form */}
       <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-3.5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="font-semibold text-slate-900 text-sm">
@@ -2481,7 +2639,6 @@ function StudyMaterialsManager() {
           />
         </div>
 
-        {/* Pricing Selection */}
         <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-3">
           <Label className="text-xs font-semibold text-slate-800">Access Mode</Label>
           <div className="flex gap-2">
@@ -2542,7 +2699,6 @@ function StudyMaterialsManager() {
         </Button>
       </div>
 
-      {/* Published Documents List */}
       <div className="lg:col-span-7 space-y-3">
         <h4 className="font-bold text-slate-900 text-sm">Published Documents ({notes.length})</h4>
         

@@ -78,18 +78,64 @@ const themeStyles: Record<Advertisement["gradient_theme"], string> = {
   emerald_pro: "from-[#052e2b] via-[#047857] to-[#14b8a6]",
 };
 
+function isRenderableImageUrl(value: string | null | undefined) {
+  if (!value?.trim()) return false;
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:" || url.protocol === "data:";
+  } catch {
+    return false;
+  }
+}
+
+function SafeAdImage({
+  src,
+  alt,
+  className,
+  fallbackClassName = "",
+}: {
+  src: string | null | undefined;
+  alt: string;
+  className?: string;
+  fallbackClassName?: string;
+}) {
+  const [failed, setFailed] = useState(!isRenderableImageUrl(src));
+
+  useEffect(() => {
+    setFailed(!isRenderableImageUrl(src));
+  }, [src]);
+
+  if (failed) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-950/45 text-center text-xs font-medium text-white/60 ${fallbackClassName}`}>
+        Promotion image unavailable
+      </div>
+    );
+  }
+
+  return <img src={src!.trim()} alt={alt} className={className} onError={() => setFailed(true)} />;
+}
+
 function followAd(ad?: Advertisement) {
   const link = ad?.cta_link || "/";
   if (ad?.is_external) window.open(link, "_blank", "noopener,noreferrer");
   else window.location.href = link;
 }
 
-function AdVisual({ ad, className = "" }: { ad: Advertisement; className?: string }) {
+export function AdVisual({ ad, className = "" }: { ad: Advertisement; className?: string }) {
+  if (!ad) return null;
+
   if (ad.banner_type === "direct_image") {
     return (
-      <div className={`relative overflow-hidden ${className}`}>
+      <div className={`group/direct relative overflow-hidden bg-slate-950 ${className}`}>
         <a href={ad.cta_link || "/"} target={ad.is_external ? "_blank" : "_self"} rel="noreferrer" className="block h-full w-full">
-          <img src={ad.image_url} alt="Promotion" className="h-full w-full rounded-2xl object-cover" />
+          <SafeAdImage
+            src={ad.image_url}
+            alt={ad.title || "Promotion"}
+            className="h-full w-full object-contain transition duration-700 ease-out group-hover/direct:scale-[1.03]"
+            fallbackClassName="h-full min-h-[inherit] w-full p-8"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-white/10 opacity-80 transition-opacity duration-300 group-hover/direct:opacity-100" />
         </a>
       </div>
     );
@@ -97,17 +143,19 @@ function AdVisual({ ad, className = "" }: { ad: Advertisement; className?: strin
 
   return (
     <div className={`relative overflow-hidden bg-gradient-to-br ${themeStyles[ad?.gradient_theme] ?? themeStyles.blue_glow} ${className}`}>
-      {ad?.image_url && <img src={ad.image_url} alt="" className="absolute inset-0 size-full object-cover opacity-35 mix-blend-screen" />}
-      <div className="absolute -right-10 -top-10 size-40 rounded-full border border-white/15 bg-white/10 blur-2xl" />
-      <div className="absolute bottom-0 left-1/3 size-24 rounded-full bg-cyan-300/15 blur-2xl" />
+      {isRenderableImageUrl(ad?.image_url) && (
+        <SafeAdImage src={ad.image_url} alt="" className="absolute inset-0 size-full object-cover opacity-30 mix-blend-screen" fallbackClassName="hidden" />
+      )}
+      <div className="absolute -right-10 -top-10 size-48 rounded-full border border-white/15 bg-white/10 blur-2xl transition-transform duration-700 group-hover:scale-110" />
+      <div className="absolute bottom-0 left-1/3 size-28 rounded-full bg-cyan-300/15 blur-2xl transition-transform duration-700 group-hover:translate-x-8" />
       <div className="relative z-10 flex h-full flex-col justify-between p-6 text-white">
         <div>
-          <Badge className="animate-pulse border-white/20 bg-white/15 text-white hover:bg-white/20">{ad?.badge_text ?? "Rankdon picks"}</Badge>
-          <h2 className="mt-5 max-w-xl font-display text-3xl font-bold leading-tight md:text-5xl">{ad?.title ?? "Rankdon Mock Series"}</h2>
+          <Badge className="border-white/20 bg-white/15 text-white shadow-lg shadow-black/10 backdrop-blur-md hover:bg-white/20">{ad?.badge_text ?? "Rankdon picks"}</Badge>
+          <h2 className="mt-5 max-w-xl font-display text-3xl font-extrabold tracking-tight leading-tight md:text-5xl">{ad?.title ?? "Rankdon Mock Series"}</h2>
           {ad?.subtitle && <p className="mt-3 max-w-lg text-sm leading-6 text-white/75 md:text-base">{ad.subtitle}</p>}
         </div>
-        <Button onClick={() => followAd(ad)} className="mt-8 w-fit gap-2 bg-white text-slate-950 hover:bg-cyan-50">
-          {ad?.cta_text ?? "Explore now"} {ad?.is_external ? <ExternalLink className="size-4" /> : <ArrowRight className="size-4" />}
+        <Button onClick={() => followAd(ad)} className="group/cta mt-8 w-fit gap-2 bg-white text-slate-950 shadow-xl shadow-black/15 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-50">
+          {ad?.cta_text ?? "Explore now"} {ad?.is_external ? <ExternalLink className="size-4 transition-transform group-hover/cta:translate-x-0.5" /> : <ArrowRight className="size-4 transition-transform group-hover/cta:translate-x-1" />}
         </Button>
       </div>
     </div>
@@ -127,15 +175,15 @@ export function HeroCarousel({ ads }: { ads: Advertisement[] }) {
   }, [items.length]);
 
   const move = (direction: number) => setActive((current) => (current + direction + items.length) % items.length);
-  const current = items[active] ?? items[0];
+const current = items[active] ?? items[0] ?? DEFAULT_ADVERTISEMENTS[0];
 
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-cyan-300/30 shadow-[0_0_50px_rgba(8,145,178,0.2)] transition-transform duration-500 hover:scale-[1.02]" onPointerDown={(event) => { pointerStart.current = event.clientX; }} onPointerUp={(event) => { if (pointerStart.current !== null && Math.abs(event.clientX - pointerStart.current) > 40) move(event.clientX < pointerStart.current ? 1 : -1); pointerStart.current = null; }}>
-      <AdVisual ad={current} className="min-h-[390px] md:min-h-[440px]" />
+    <section className="group relative overflow-hidden rounded-[2rem] border border-cyan-300/30 shadow-[0_0_50px_rgba(8,145,178,0.2)] transition-transform duration-500 hover:scale-[1.01]" onPointerDown={(event) => { pointerStart.current = event.clientX; }} onPointerUp={(event) => { if (pointerStart.current !== null && Math.abs(event.clientX - pointerStart.current) > 40) move(event.clientX < pointerStart.current ? 1 : -1); pointerStart.current = null; }}>
+      {current && <AdVisual ad={current} className="min-h-[390px] md:min-h-[440px]" />}
       {items.length > 1 && <>
         <div className="absolute right-5 top-5 z-20 flex gap-2">
-          <button type="button" aria-label="Previous promotion" onClick={() => move(-1)} className="rounded-full border border-white/20 bg-white/10 p-2 text-white backdrop-blur-md transition hover:bg-white/20"><ArrowLeft className="size-4" /></button>
-          <button type="button" aria-label="Next promotion" onClick={() => move(1)} className="rounded-full border border-white/20 bg-white/10 p-2 text-white backdrop-blur-md transition hover:bg-white/20"><ArrowRight className="size-4" /></button>
+          <button type="button" aria-label="Previous promotion" onClick={() => move(-1)} className="rounded-full border border-white/20 bg-white/10 p-2 text-white shadow-lg backdrop-blur-md transition duration-300 hover:-translate-x-0.5 hover:bg-white/20"><ArrowLeft className="size-4" /></button>
+          <button type="button" aria-label="Next promotion" onClick={() => move(1)} className="rounded-full border border-white/20 bg-white/10 p-2 text-white shadow-lg backdrop-blur-md transition duration-300 hover:translate-x-0.5 hover:bg-white/20"><ArrowRight className="size-4" /></button>
         </div>
         <div className="absolute bottom-6 right-6 z-20 flex gap-2">
           {items.map((item, index) => <button key={item?.id ?? `hero-${index}`} type="button" aria-label={`Show promotion ${index + 1}`} onClick={() => setActive(index)} className={`h-2 rounded-full transition-all ${index === active ? "w-8 bg-white" : "w-2 bg-white/40"}`} />)}
@@ -153,8 +201,8 @@ export function SidebarPromotions({ ads }: { ads: Advertisement[] }) {
 
 export function PromoStrip({ ads }: { ads: Advertisement[] }) {
   const ad = (ads ?? []).find((item) => item?.placement === "floating_bar" && item?.is_active) ?? DEFAULT_ADVERTISEMENTS[0];
-  if (ad.banner_type === "direct_image") {
-    return <a href={ad.cta_link || "/"} target={ad.is_external ? "_blank" : "_self"} rel="noreferrer" className="block h-20 w-full overflow-hidden"><img src={ad.image_url} alt="Promotion" className="h-full w-full object-cover" /></a>;
+  if (ad?.banner_type === "direct_image") {
+    return <a href={ad.cta_link || "/"} target={ad.is_external ? "_blank" : "_self"} rel="noreferrer" className="block h-20 w-full overflow-hidden bg-slate-950"><SafeAdImage src={ad.image_url} alt={ad.title || "Promotion"} className="h-full w-full object-contain" fallbackClassName="h-full w-full" /></a>;
   }
   return <button type="button" onClick={() => followAd(ad)} className="group flex w-full items-center justify-between gap-3 border-y border-cyan-200/20 bg-[#071923] px-4 py-3 text-left text-white transition hover:bg-[#0b2938]"><span className="flex items-center gap-2 text-sm font-semibold"><Zap className="size-4 text-cyan-300" />{ad?.badge_text ?? "Rankdon"}: {ad?.title ?? "Mock tests with instant analysis"}</span><span className="flex items-center gap-1 text-xs text-cyan-200">{ad?.cta_text ?? "Explore now"}<Sparkles className="size-3 transition group-hover:rotate-12" /></span></button>;
 }
