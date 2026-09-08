@@ -53,7 +53,9 @@ export default function ReferralsPage() {
 
   const referralCode = data?.profile.referral_code?.trim().toUpperCase() ?? "";
   const referralLink = referralCode ? `http://192.168.1.12:8080/?ref=${referralCode}` : "";
-  const shareMessage = `Prepare smarter with Rankdon. Join me for focused mock tests, performance insights, and better exam readiness. Sign up here: ${referralLink}`;
+  const shareMessage = `Hey! I’ve been using Rankdon for smart JKSSB mock tests and deep performance analytics.
+
+Don't miss out—register using my special link today and start your prep with 10 Free Coins credited directly to your account: ${referralLink}`;
 
   const copyShareMessage = async () => {
     if (!referralLink) {
