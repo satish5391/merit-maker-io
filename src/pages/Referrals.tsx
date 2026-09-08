@@ -53,7 +53,7 @@ export default function ReferralsPage() {
 
   const referralCode = data?.profile.referral_code?.trim().toUpperCase() ?? "";
   const referralLink = referralCode ? `http://rankdon.in/?ref=${referralCode}` : "";
-  const shareMessage = `Hey! I’ve been using Rankdon for smart JKSSB mock tests and deep performance analytics.
+  const shareMessage = `🚀 Want a secret edge for your upcoming JKSSB exams? Stop studying blindly and start practicing with real exam simulations on Rankdon.
 
 Don't miss out—register using my special link today and start your prep with 10 Free Coins credited directly to your account: ${referralLink}`;
 
@@ -67,7 +67,6 @@ Don't miss out—register using my special link today and start your prep with 1
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareMessage);
       } else {
-        // Fallback for non-secure contexts or local network IPs (e.g., 192.168.x.x)
         const textArea = document.createElement("textarea");
         textArea.value = shareMessage;
         textArea.style.position = "fixed";
@@ -111,6 +110,18 @@ Don't miss out—register using my special link today and start your prep with 1
   return (
     <main className="min-h-[calc(100vh-80px)] bg-[#0f172a] px-4 py-10 text-white sm:px-6 lg:py-14">
       <div className="mx-auto max-w-5xl">
+        
+        {/* Promotional Banner */}
+        <div className="mb-8 overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-900/70 shadow-lg">
+          <img 
+            src="https://eqmmxofeuozvtpnzbcoc.supabase.co/storage/v1/object/public/public-assets/your-banner-filename.webp" 
+            alt="Rankdon Refer and Earn Banner" 
+            className="h-auto w-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+          />
+        </div>
+
         <div className="max-w-2xl">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/15 ring-1 ring-cyan-300/30">
             <Gift className="h-6 w-6 text-cyan-300" />
