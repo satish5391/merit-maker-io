@@ -114,7 +114,7 @@ Don't miss out—register using my special link today and start your prep with 1
         {/* Promotional Banner */}
         <div className="mb-8 overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-900/70 shadow-lg">
           <img 
-            src="https://eqmmxofeuozvtpnzbcoc.supabase.co/storage/v1/object/public/public-assets/your-banner-filename.webp" 
+            src="https://eqmmxofeuozvtpnzbcoc.supabase.co/storage/v1/object/public/public-assets/ads/0.39027727946881074.jpg" 
             alt="Rankdon Refer and Earn Banner" 
             className="h-auto w-full object-cover"
             loading="eager"
