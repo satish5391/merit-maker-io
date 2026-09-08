@@ -51,6 +51,12 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Timed mock tests with instant rank, percentile and performance comparison.",
       },
+      {
+        property: "og:image",
+        content: "https://eqmmxofeuozvtpnzbcoc.supabase.co/storage/v1/object/public/public-assets/ads/0.39027727946881074.jpg",
+      },
+      { property: "og:url", content: "https://rankdon.in" },
+      { property: "og:type", content: "website" },
     ],
   }),
   component: Home,
