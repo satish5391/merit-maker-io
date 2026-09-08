@@ -23,6 +23,7 @@ import {
   readTestSession,
   writeTestSession,
   clearTestSession,
+  saveAttemptAnswersToSupabase,
 } from "@/lib/test-session";
 
 export const Route = createFileRoute("/test/$testId")({
@@ -337,6 +338,10 @@ function TestPage() {
           .select("id")
           .single();
         if (error || !remoteAttempt?.id) throw error ?? new Error("Could not save attempt.");
+
+        // Save individual question responses to 'attempt_answers' table
+        await saveAttemptAnswersToSupabase(testId, user.id, remoteAttempt.id, supabase);
+
         if (auto) toast.info("Time's up — your test was submitted automatically.");
         setStarted(false);
         setIsPaused(false);

@@ -90,3 +90,34 @@ export function hasTestSession(testId: string, userId?: string | null): boolean 
   const session = readTestSession(testId, userId);
   return Boolean(session && !session.isSubmitted && session.remainingTimeSeconds > 0);
 }
+
+/**
+ * Automatically extracts answers from the active local session 
+ * and pushes them to the Supabase `attempt_answers` table.
+ */
+export async function saveAttemptAnswersToSupabase(
+  testId: string,
+  userId: string | null | undefined,
+  attemptId: string,
+  supabaseClient: any
+) {
+  const session = readTestSession(testId, userId);
+  if (!session || !session.answers || Object.keys(session.answers).length === 0) {
+    return;
+  }
+
+  // Map the answers Record into rows matching your Supabase table schema
+  const answerRows = Object.entries(session.answers).map(([questionId, selectedOption]) => ({
+    attempt_id: attemptId,
+    question_id: questionId,
+    selected_option: selectedOption,
+  }));
+
+  const { error } = await supabaseClient.from("attempt_answers").insert(answerRows);
+  if (error) {
+    console.error("Failed to save attempt answers to database:", error);
+  } else {
+    // Clear the local session cache only after a successful database write
+    clearTestSession(testId, userId);
+  }
+}
