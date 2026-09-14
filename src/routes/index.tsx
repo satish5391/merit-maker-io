@@ -19,7 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
+import { countQuestions, fetchTests, fetchStudentAttempts, type Test } from "@/lib/mock-test";
 import { getStudentName } from "@/lib/student";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -95,14 +95,16 @@ type RazorpayConstructor = new (options: RazorpayOptions) => RazorpayInstance;
 
 async function fetchTestsWithStats(): Promise<TestWithStats[]> {
   const tests = await fetchTests();
-  const [{ data: qs }, { data: as }] = await Promise.all([
-    supabase.from("questions").select("test_id"),
+  const [{ data: as }, questionCounts] = await Promise.all([
     supabase.from("attempts").select("test_id"),
+    Promise.all(tests.map(async (test) => [test.id, await countQuestions(test.id)] as const)),
   ]);
-  return tests.map((t) => ({
-    ...t,
-    questionCount: (qs ?? []).filter((q) => q.test_id === t.id).length,
-    attemptCount: (as ?? []).filter((a) => a.test_id === t.id).length,
+  const questionCountByTest = new Map(questionCounts);
+
+  return tests.map((test) => ({
+    ...test,
+    questionCount: questionCountByTest.get(test.id) ?? 0,
+    attemptCount: (as ?? []).filter((attempt) => attempt.test_id === test.id).length,
   }));
 }
 
