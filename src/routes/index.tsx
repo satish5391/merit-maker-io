@@ -960,23 +960,33 @@ function Home() {
                     View all series
                   </button>
                 </div>
-                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-fr items-stretch">
                   {packagesWithMeta.slice(0, 3).map((pkg: any, index: number) => (
                     <article
                       key={pkg?.id ?? `featured-${index}`}
-                      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                      className="h-full flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
                     >
                       <Badge variant="secondary">{pkg?.category ?? "Rankdon series"}</Badge>
                       <h3 className="mt-3 font-display text-lg font-semibold">
                         {pkg?.title ?? "Rankdon Mock Series"}
                       </h3>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                        className="text-sm text-muted-foreground min-h-[4.5rem]"
+                      >
                         {pkg?.description ??
                           "A focused bundle for consistent practice and better ranks."}
                       </p>
-                      <Button size="sm" className="mt-5" onClick={() => handleSetView("packages")}>
-                        Explore series
-                      </Button>
+                      <div className="mt-auto pt-4">
+                        <Button size="sm" onClick={() => handleSetView("packages")}>
+                          Explore series
+                        </Button>
+                      </div>
                     </article>
                   ))}
                   {packagesWithMeta.length === 0 && (
@@ -1073,7 +1083,7 @@ function Home() {
                         return (
                           <article
                             key={p.id}
-                            className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
+                            className="flex h-full min-w-0 flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
                           >
                             <div className="flex min-w-0 flex-1 flex-col">
                               <div className="flex flex-wrap items-start gap-2">
@@ -1083,9 +1093,9 @@ function Home() {
                                   <Badge variant="secondary">{p.category}</Badge>
                                   {p.is_combo && <Badge>Combo Offer</Badge>}
                               </div>
-                              <div className="mt-3 min-h-12 text-sm leading-6 text-muted-foreground">
+                              <p className="mt-3 min-h-[4.5rem] line-clamp-3 overflow-hidden text-ellipsis text-sm leading-6 text-muted-foreground">
                                 {p.description}
-                              </div>
+                              </p>
                               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
                                 <span className="font-semibold text-slate-900">₹{offerPrice ?? "—"}</span>
                                 {p.price && p.discount_price && (
@@ -1098,7 +1108,7 @@ function Home() {
                               <div className="mt-2 text-xs text-muted-foreground">
                                 {p.includedTests.length} tests included
                               </div>
-                              <div className="mt-5 flex w-full flex-col gap-2 sm:mt-auto sm:pt-5">
+                              <div className="mt-auto flex w-full flex-col gap-2 pt-5">
                                 <Button className="w-full" size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
                                   View Included Tests
                                 </Button>
@@ -1251,7 +1261,7 @@ function Home() {
                       return (
                         <article
                           key={p.id}
-                          className="flex min-w-0 flex-col rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
+                          className="flex h-full min-w-0 flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
                         >
                           <div className="flex min-w-0 flex-1 flex-col">
                             <div className="flex flex-wrap items-start gap-2">
@@ -1261,9 +1271,9 @@ function Home() {
                                 <Badge variant="secondary">{p.category}</Badge>
                                 {p.is_combo && <Badge>Combo Offer</Badge>}
                             </div>
-                            <div className="mt-3 min-h-12 text-sm leading-6 text-muted-foreground">
+                            <p className="mt-3 min-h-[4.5rem] line-clamp-3 overflow-hidden text-ellipsis text-sm leading-6 text-muted-foreground">
                               {p.description}
-                            </div>
+                            </p>
                             <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
                               <span className="font-semibold text-slate-900">₹{offerPrice ?? "—"}</span>
                               {p.price && p.discount_price && (
@@ -1276,7 +1286,7 @@ function Home() {
                             <div className="mt-2 text-xs text-muted-foreground">
                               {p.includedTests.length} tests included
                             </div>
-                            <div className="mt-5 flex w-full flex-col gap-2 sm:mt-auto sm:pt-5">
+                            <div className="mt-auto flex w-full flex-col gap-2 pt-5">
                               <Button className="w-full" size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
                                 View Included Tests
                               </Button>

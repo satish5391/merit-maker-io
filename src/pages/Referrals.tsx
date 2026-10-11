@@ -56,7 +56,9 @@ export default function ReferralsPage() {
   
   const shareMessage = `🚀 Want a secret edge for your upcoming JKSSB exams? Stop studying blindly and start practicing with real exam simulations on Rankdon.
 
-Don't miss out—register using my special link today and start your prep with 10 Free Coins credited directly to your account: ${referralLink}`;
+Don't miss out—register using my special link today and start your prep with 10 Free Coins credited directly to your account: ${referralLink}
+
+Join our official Telegram community for daily updates and free materials: https://t.me/rankdon`;
 
   const copyShareMessage = async () => {
     if (!referralLink) {

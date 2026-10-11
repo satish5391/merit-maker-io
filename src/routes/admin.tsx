@@ -178,6 +178,11 @@ function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState<"tests" | "packages" | "notes" | "ads" | "users">("tests");
   const [testSearch, setTestSearch] = useState("");
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: string;
+    type: "test" | "package";
+    title?: string;
+  } | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -389,6 +394,7 @@ function AdminDashboard() {
     },
     onSuccess: () => {
       toast.success("Test deleted");
+      setItemToDelete(null);
       resetForm();
       qc.invalidateQueries({ queryKey: ["tests"] });
       qc.invalidateQueries({ queryKey: ["tests-with-stats"] });
@@ -1191,7 +1197,7 @@ function AdminDashboard() {
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() => deleteTest.mutate(t.id)}
+                          onClick={() => setItemToDelete({ id: t.id, type: "test", title: t.title })}
                           className="h-8 w-8 p-0 rounded-lg"
                         >
                           <Trash2 className="size-3.5" />
@@ -1225,6 +1231,32 @@ function AdminDashboard() {
         {activeTab === "ads" && <AdvertisementManager />}
         {activeTab === "users" && <UserManagement />}
       </div>
+      {itemToDelete?.type === "test" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl border border-border">
+            <h2 className="text-lg font-semibold">Delete {itemToDelete.title ?? "this test"}?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Are you sure you want to delete this test? All associated questions and attempt records
+              will be permanently removed. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setItemToDelete(null)} disabled={deleteTest.isPending}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  deleteTest.mutate(itemToDelete.id);
+                  setItemToDelete(null);
+                }}
+                disabled={deleteTest.isPending}
+              >
+                {deleteTest.isPending ? "Deleting..." : "Confirm Delete"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
   </div>
   );
 }
@@ -1240,6 +1272,11 @@ function PackagesManager() {
   const [pkgIsCombo, setPkgIsCombo] = useState(false);
   const [pkgSelectedTests, setPkgSelectedTests] = useState<string[]>([]);
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{
+    id: string;
+    type: "test" | "package";
+    title?: string;
+  } | null>(null);
 
   const { data: packagesData, refetch: refetchPackages } = useQuery({
     queryKey: ["packages-with-links"],
@@ -1339,6 +1376,7 @@ function PackagesManager() {
     },
     onSuccess: (_, id) => {
       toast.success("Package deleted");
+      setItemToDelete(null);
       if (editingPackageId === id) resetPackageForm();
       void refetchPackages();
     },
@@ -1486,7 +1524,7 @@ function PackagesManager() {
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={() => deletePackage.mutate(p.id)}
+                  onClick={() => setItemToDelete({ id: p.id, type: "package", title: p.title })}
                   className="h-8 rounded-lg text-xs"
                   title="Delete package"
                 >
@@ -1502,6 +1540,32 @@ function PackagesManager() {
         </div>
       )}
     </div>
+    {itemToDelete?.type === "package" && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-2xl border border-border">
+          <h2 className="text-lg font-semibold">Delete {itemToDelete.title ?? "this package"}?</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Are you sure you want to delete this test? All associated questions and attempt records
+            will be permanently removed. This action cannot be undone.
+          </p>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setItemToDelete(null)} disabled={deletePackage.isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deletePackage.mutate(itemToDelete.id);
+                setItemToDelete(null);
+              }}
+              disabled={deletePackage.isPending}
+            >
+              {deletePackage.isPending ? "Deleting..." : "Confirm Delete"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
   );
 }
