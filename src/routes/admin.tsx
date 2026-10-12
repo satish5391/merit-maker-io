@@ -109,6 +109,12 @@ const BULK_UPLOAD_HEADERS = [
   "explanation",
 ];
 
+const formatForDateTimeInput = (utcString?: string | null) => {
+  if (!utcString) return "";
+  const d = new Date(utcString);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+};
+
 function Admin() {
   const { user, profile, loading } = useAuth();
   const email = user?.email?.trim().toLowerCase() ?? "";
@@ -354,19 +360,9 @@ function AdminDashboard() {
       setDiscountPrice((test as any).discount_price ?? "");
       setMaxAttempts(test.max_attempts === null ? "Unlimited" : String(test.max_attempts));
       setIsLive(Boolean((test as any).is_live));
-      setStartTime(
-        (test as any).start_time
-          ? new Date((test as any).start_time).toISOString().slice(0, 16)
-          : "",
-      );
-      setEndTime(
-        (test as any).end_time ? new Date((test as any).end_time).toISOString().slice(0, 16) : "",
-      );
-      setResultDeclarationTime(
-        (test as any).result_declaration_time
-          ? new Date((test as any).result_declaration_time).toISOString().slice(0, 16)
-          : "",
-      );
+      setStartTime(formatForDateTimeInput((test as any).start_time));
+      setEndTime(formatForDateTimeInput((test as any).end_time));
+      setResultDeclarationTime(formatForDateTimeInput((test as any).result_declaration_time));
       setQuestions(
         qs.length
           ? qs.map((q) => ({
