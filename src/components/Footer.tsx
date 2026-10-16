@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Mail, Phone, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Mail, Send, ShieldCheck } from "lucide-react";
 
 export function Footer() {
   return (
@@ -45,9 +45,14 @@ export function Footer() {
               <Mail className="mt-0.5 size-4 shrink-0 text-cyan-400" />
               <span>support@rankdon.in</span>
             </a>
-            <a href="tel:+91" className="flex items-start gap-2.5 transition-colors hover:text-cyan-300">
-              <Phone className="mt-0.5 size-4 shrink-0 text-cyan-400" />
-              <span>+91 </span>
+            <a
+              href="https://t.me/rankdon"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-2.5 transition-colors hover:text-cyan-300"
+            >
+              <Send className="mt-0.5 size-4 shrink-0 text-cyan-400" />
+              <span>Join our Telegram Channel</span>
             </a>
             <div className="mt-5 flex items-start gap-2.5 rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3 text-xs leading-5 text-slate-400">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-400" />

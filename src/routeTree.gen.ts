@@ -20,6 +20,7 @@ import { Route as JkssbFaaMockTestRouteImport } from './routes/jkssb-faa-mock-te
 import { Route as JkssbFemaleSupervisorMockTestRouteImport } from './routes/jkssb-female-supervisor-mock-test'
 import { Route as JkssbJkpsiMockTestRouteImport } from './routes/jkssb-jkpsi-mock-test'
 import { Route as JkssbJuniorAssistantMockTestRouteImport } from './routes/jkssb-junior-assistant-mock-test'
+import { Route as JkssbNaibTehsildarMockTestRouteImport } from './routes/jkssb-naib-tehsildar-mock-test'
 import { Route as JkssbPatwariMockTestRouteImport } from './routes/jkssb-patwari-mock-test'
 import { Route as LiveTestsRouteImport } from './routes/live-tests'
 import { Route as NotesRouteImport } from './routes/notes'
@@ -87,6 +88,12 @@ const JkssbJuniorAssistantMockTestRoute =
   JkssbJuniorAssistantMockTestRouteImport.update({
     id: '/jkssb-junior-assistant-mock-test',
     path: '/jkssb-junior-assistant-mock-test',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const JkssbNaibTehsildarMockTestRoute =
+  JkssbNaibTehsildarMockTestRouteImport.update({
+    id: '/jkssb-naib-tehsildar-mock-test',
+    path: '/jkssb-naib-tehsildar-mock-test',
     getParentRoute: () => rootRouteImport,
   } as any)
 const JkssbPatwariMockTestRoute = JkssbPatwariMockTestRouteImport.update({
@@ -157,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
   '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
   '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-naib-tehsildar-mock-test': typeof JkssbNaibTehsildarMockTestRoute
   '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
   '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
   '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-naib-tehsildar-mock-test': typeof JkssbNaibTehsildarMockTestRoute
   '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
   '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
   '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-naib-tehsildar-mock-test': typeof JkssbNaibTehsildarMockTestRoute
   '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
@@ -232,6 +242,7 @@ export interface FileRouteTypes {
     | '/jkssb-female-supervisor-mock-test'
     | '/jkssb-jkpsi-mock-test'
     | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-naib-tehsildar-mock-test'
     | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
@@ -256,6 +267,7 @@ export interface FileRouteTypes {
     | '/jkssb-female-supervisor-mock-test'
     | '/jkssb-jkpsi-mock-test'
     | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-naib-tehsildar-mock-test'
     | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
@@ -280,6 +292,7 @@ export interface FileRouteTypes {
     | '/jkssb-female-supervisor-mock-test'
     | '/jkssb-jkpsi-mock-test'
     | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-naib-tehsildar-mock-test'
     | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
@@ -305,6 +318,7 @@ export interface RootRouteChildren {
   JkssbFemaleSupervisorMockTestRoute: typeof JkssbFemaleSupervisorMockTestRoute
   JkssbJkpsiMockTestRoute: typeof JkssbJkpsiMockTestRoute
   JkssbJuniorAssistantMockTestRoute: typeof JkssbJuniorAssistantMockTestRoute
+  JkssbNaibTehsildarMockTestRoute: typeof JkssbNaibTehsildarMockTestRoute
   JkssbPatwariMockTestRoute: typeof JkssbPatwariMockTestRoute
   LiveTestsRoute: typeof LiveTestsRoute
   NotesRoute: typeof NotesRoute
@@ -395,6 +409,13 @@ declare module '@tanstack/react-router' {
       path: '/jkssb-junior-assistant-mock-test'
       fullPath: '/jkssb-junior-assistant-mock-test'
       preLoaderRoute: typeof JkssbJuniorAssistantMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-naib-tehsildar-mock-test': {
+      id: '/jkssb-naib-tehsildar-mock-test'
+      path: '/jkssb-naib-tehsildar-mock-test'
+      fullPath: '/jkssb-naib-tehsildar-mock-test'
+      preLoaderRoute: typeof JkssbNaibTehsildarMockTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jkssb-patwari-mock-test': {
@@ -489,6 +510,7 @@ const rootRouteChildren: RootRouteChildren = {
   JkssbFemaleSupervisorMockTestRoute: JkssbFemaleSupervisorMockTestRoute,
   JkssbJkpsiMockTestRoute: JkssbJkpsiMockTestRoute,
   JkssbJuniorAssistantMockTestRoute: JkssbJuniorAssistantMockTestRoute,
+  JkssbNaibTehsildarMockTestRoute: JkssbNaibTehsildarMockTestRoute,
   JkssbPatwariMockTestRoute: JkssbPatwariMockTestRoute,
   LiveTestsRoute: LiveTestsRoute,
   NotesRoute: NotesRoute,
