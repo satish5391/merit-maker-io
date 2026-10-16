@@ -13,7 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AttemptedTestsRouteImport } from './routes/attempted-tests'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as FreeJkssbMockTestsRouteImport } from './routes/free-jkssb-mock-tests'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as JkpConstableMockTestRouteImport } from './routes/jkp-constable-mock-test'
+import { Route as JkssbFaaMockTestRouteImport } from './routes/jkssb-faa-mock-test'
+import { Route as JkssbFemaleSupervisorMockTestRouteImport } from './routes/jkssb-female-supervisor-mock-test'
+import { Route as JkssbJkpsiMockTestRouteImport } from './routes/jkssb-jkpsi-mock-test'
+import { Route as JkssbJuniorAssistantMockTestRouteImport } from './routes/jkssb-junior-assistant-mock-test'
+import { Route as JkssbPatwariMockTestRouteImport } from './routes/jkssb-patwari-mock-test'
 import { Route as LiveTestsRouteImport } from './routes/live-tests'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -45,9 +52,46 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FreeJkssbMockTestsRoute = FreeJkssbMockTestsRouteImport.update({
+  id: '/free-jkssb-mock-tests',
+  path: '/free-jkssb-mock-tests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JkpConstableMockTestRoute = JkpConstableMockTestRouteImport.update({
+  id: '/jkp-constable-mock-test',
+  path: '/jkp-constable-mock-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JkssbFaaMockTestRoute = JkssbFaaMockTestRouteImport.update({
+  id: '/jkssb-faa-mock-test',
+  path: '/jkssb-faa-mock-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JkssbFemaleSupervisorMockTestRoute =
+  JkssbFemaleSupervisorMockTestRouteImport.update({
+    id: '/jkssb-female-supervisor-mock-test',
+    path: '/jkssb-female-supervisor-mock-test',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const JkssbJkpsiMockTestRoute = JkssbJkpsiMockTestRouteImport.update({
+  id: '/jkssb-jkpsi-mock-test',
+  path: '/jkssb-jkpsi-mock-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JkssbJuniorAssistantMockTestRoute =
+  JkssbJuniorAssistantMockTestRouteImport.update({
+    id: '/jkssb-junior-assistant-mock-test',
+    path: '/jkssb-junior-assistant-mock-test',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const JkssbPatwariMockTestRoute = JkssbPatwariMockTestRouteImport.update({
+  id: '/jkssb-patwari-mock-test',
+  path: '/jkssb-patwari-mock-test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveTestsRoute = LiveTestsRouteImport.update({
@@ -106,7 +150,14 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
+  '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
   '/history': typeof HistoryRoute
+  '/jkp-constable-mock-test': typeof JkpConstableMockTestRoute
+  '/jkssb-faa-mock-test': typeof JkssbFaaMockTestRoute
+  '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
+  '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
+  '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
@@ -123,7 +174,14 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
+  '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
   '/history': typeof HistoryRoute
+  '/jkp-constable-mock-test': typeof JkpConstableMockTestRoute
+  '/jkssb-faa-mock-test': typeof JkssbFaaMockTestRoute
+  '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
+  '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
+  '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
@@ -141,7 +199,14 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
+  '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
   '/history': typeof HistoryRoute
+  '/jkp-constable-mock-test': typeof JkpConstableMockTestRoute
+  '/jkssb-faa-mock-test': typeof JkssbFaaMockTestRoute
+  '/jkssb-female-supervisor-mock-test': typeof JkssbFemaleSupervisorMockTestRoute
+  '/jkssb-jkpsi-mock-test': typeof JkssbJkpsiMockTestRoute
+  '/jkssb-junior-assistant-mock-test': typeof JkssbJuniorAssistantMockTestRoute
+  '/jkssb-patwari-mock-test': typeof JkssbPatwariMockTestRoute
   '/live-tests': typeof LiveTestsRoute
   '/notes': typeof NotesRoute
   '/privacy': typeof PrivacyRoute
@@ -160,7 +225,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/contact'
+    | '/free-jkssb-mock-tests'
     | '/history'
+    | '/jkp-constable-mock-test'
+    | '/jkssb-faa-mock-test'
+    | '/jkssb-female-supervisor-mock-test'
+    | '/jkssb-jkpsi-mock-test'
+    | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
     | '/privacy'
@@ -177,7 +249,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/contact'
+    | '/free-jkssb-mock-tests'
     | '/history'
+    | '/jkp-constable-mock-test'
+    | '/jkssb-faa-mock-test'
+    | '/jkssb-female-supervisor-mock-test'
+    | '/jkssb-jkpsi-mock-test'
+    | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
     | '/privacy'
@@ -194,7 +273,14 @@ export interface FileRouteTypes {
     | '/admin'
     | '/attempted-tests'
     | '/contact'
+    | '/free-jkssb-mock-tests'
     | '/history'
+    | '/jkp-constable-mock-test'
+    | '/jkssb-faa-mock-test'
+    | '/jkssb-female-supervisor-mock-test'
+    | '/jkssb-jkpsi-mock-test'
+    | '/jkssb-junior-assistant-mock-test'
+    | '/jkssb-patwari-mock-test'
     | '/live-tests'
     | '/notes'
     | '/privacy'
@@ -212,7 +298,14 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AttemptedTestsRoute: typeof AttemptedTestsRoute
   ContactRoute: typeof ContactRoute
+  FreeJkssbMockTestsRoute: typeof FreeJkssbMockTestsRoute
   HistoryRoute: typeof HistoryRoute
+  JkpConstableMockTestRoute: typeof JkpConstableMockTestRoute
+  JkssbFaaMockTestRoute: typeof JkssbFaaMockTestRoute
+  JkssbFemaleSupervisorMockTestRoute: typeof JkssbFemaleSupervisorMockTestRoute
+  JkssbJkpsiMockTestRoute: typeof JkssbJkpsiMockTestRoute
+  JkssbJuniorAssistantMockTestRoute: typeof JkssbJuniorAssistantMockTestRoute
+  JkssbPatwariMockTestRoute: typeof JkssbPatwariMockTestRoute
   LiveTestsRoute: typeof LiveTestsRoute
   NotesRoute: typeof NotesRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -255,11 +348,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/free-jkssb-mock-tests': {
+      id: '/free-jkssb-mock-tests'
+      path: '/free-jkssb-mock-tests'
+      fullPath: '/free-jkssb-mock-tests'
+      preLoaderRoute: typeof FreeJkssbMockTestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkp-constable-mock-test': {
+      id: '/jkp-constable-mock-test'
+      path: '/jkp-constable-mock-test'
+      fullPath: '/jkp-constable-mock-test'
+      preLoaderRoute: typeof JkpConstableMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-faa-mock-test': {
+      id: '/jkssb-faa-mock-test'
+      path: '/jkssb-faa-mock-test'
+      fullPath: '/jkssb-faa-mock-test'
+      preLoaderRoute: typeof JkssbFaaMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-female-supervisor-mock-test': {
+      id: '/jkssb-female-supervisor-mock-test'
+      path: '/jkssb-female-supervisor-mock-test'
+      fullPath: '/jkssb-female-supervisor-mock-test'
+      preLoaderRoute: typeof JkssbFemaleSupervisorMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-jkpsi-mock-test': {
+      id: '/jkssb-jkpsi-mock-test'
+      path: '/jkssb-jkpsi-mock-test'
+      fullPath: '/jkssb-jkpsi-mock-test'
+      preLoaderRoute: typeof JkssbJkpsiMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-junior-assistant-mock-test': {
+      id: '/jkssb-junior-assistant-mock-test'
+      path: '/jkssb-junior-assistant-mock-test'
+      fullPath: '/jkssb-junior-assistant-mock-test'
+      preLoaderRoute: typeof JkssbJuniorAssistantMockTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jkssb-patwari-mock-test': {
+      id: '/jkssb-patwari-mock-test'
+      path: '/jkssb-patwari-mock-test'
+      fullPath: '/jkssb-patwari-mock-test'
+      preLoaderRoute: typeof JkssbPatwariMockTestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live-tests': {
@@ -340,7 +482,14 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AttemptedTestsRoute: AttemptedTestsRoute,
   ContactRoute: ContactRoute,
+  FreeJkssbMockTestsRoute: FreeJkssbMockTestsRoute,
   HistoryRoute: HistoryRoute,
+  JkpConstableMockTestRoute: JkpConstableMockTestRoute,
+  JkssbFaaMockTestRoute: JkssbFaaMockTestRoute,
+  JkssbFemaleSupervisorMockTestRoute: JkssbFemaleSupervisorMockTestRoute,
+  JkssbJkpsiMockTestRoute: JkssbJkpsiMockTestRoute,
+  JkssbJuniorAssistantMockTestRoute: JkssbJuniorAssistantMockTestRoute,
+  JkssbPatwariMockTestRoute: JkssbPatwariMockTestRoute,
   LiveTestsRoute: LiveTestsRoute,
   NotesRoute: NotesRoute,
   PrivacyRoute: PrivacyRoute,
