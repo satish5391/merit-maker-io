@@ -23,6 +23,7 @@ export function Footer() {
           <h2 className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Platform</h2>
           <ul className="space-y-3 text-sm">
             <li><Link to="/" className="group inline-flex items-center gap-1 transition-colors hover:text-cyan-300">All Tests <ArrowUpRight className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></Link></li>
+            <li><Link to="/all-exams" className="text-xs text-slate-400 transition-colors hover:text-cyan-300">All Exams Directory</Link></li>
             <li><Link to="/notes" className="transition-colors hover:text-cyan-300">Study Notes</Link></li>
             <li><Link to="/live-tests" className="transition-colors hover:text-cyan-300">Live Exams</Link></li>
           </ul>

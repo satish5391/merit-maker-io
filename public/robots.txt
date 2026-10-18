@@ -12,3 +12,4 @@ Allow: /
 
 User-agent: *
 Allow: /
+Sitemap: [https://rankdon.in/sitemap.xml](https://rankdon.in/sitemap.xml)

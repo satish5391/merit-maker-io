@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AllExamsRouteImport } from './routes/all-exams'
 import { Route as AttemptedTestsRouteImport } from './routes/attempted-tests'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FreeJkssbMockTestsRouteImport } from './routes/free-jkssb-mock-tests'
@@ -41,6 +42,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AllExamsRoute = AllExamsRouteImport.update({
+  id: '/all-exams',
+  path: '/all-exams',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AttemptedTestsRoute = AttemptedTestsRouteImport.update({
@@ -155,6 +161,7 @@ const TestTestIdRoute = TestTestIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/all-exams': typeof AllExamsRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
   '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
@@ -180,6 +187,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/all-exams': typeof AllExamsRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
   '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
@@ -206,6 +214,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/all-exams': typeof AllExamsRoute
   '/attempted-tests': typeof AttemptedTestsRoute
   '/contact': typeof ContactRoute
   '/free-jkssb-mock-tests': typeof FreeJkssbMockTestsRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/all-exams'
     | '/attempted-tests'
     | '/contact'
     | '/free-jkssb-mock-tests'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/all-exams'
     | '/attempted-tests'
     | '/contact'
     | '/free-jkssb-mock-tests'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/all-exams'
     | '/attempted-tests'
     | '/contact'
     | '/free-jkssb-mock-tests'
@@ -309,6 +321,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AllExamsRoute: typeof AllExamsRoute
   AttemptedTestsRoute: typeof AttemptedTestsRoute
   ContactRoute: typeof ContactRoute
   FreeJkssbMockTestsRoute: typeof FreeJkssbMockTestsRoute
@@ -346,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/all-exams': {
+      id: '/all-exams'
+      path: '/all-exams'
+      fullPath: '/all-exams'
+      preLoaderRoute: typeof AllExamsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/attempted-tests': {
@@ -501,6 +521,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AllExamsRoute: AllExamsRoute,
   AttemptedTestsRoute: AttemptedTestsRoute,
   ContactRoute: ContactRoute,
   FreeJkssbMockTestsRoute: FreeJkssbMockTestsRoute,

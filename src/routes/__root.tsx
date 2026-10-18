@@ -9,6 +9,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { HelmetProvider } from "react-helmet-async";
 
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from '@/context/AuthContext';
@@ -130,20 +131,22 @@ function RootComponent() {
   const isTestTakingRoute = pathname.includes("/test/") || pathname.includes("/attempt/");
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden font-sans">
-          {!isTestTakingRoute && <SiteHeaderWithAuth />}
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <main className="min-h-0 flex-1">
-            <Outlet />
-          </main>
-          {!isTestTakingRoute && <Footer />}
-          <AuthModal />
-        </div>
-      </AuthProvider>
-      <Toaster position="top-center" richColors />
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <div className="flex min-h-screen min-w-0 flex-col overflow-x-hidden font-sans">
+            {!isTestTakingRoute && <SiteHeaderWithAuth />}
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <main className="min-h-0 flex-1">
+              <Outlet />
+            </main>
+            {!isTestTakingRoute && <Footer />}
+            <AuthModal />
+          </div>
+        </AuthProvider>
+        <Toaster position="top-center" richColors />
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 }
 
