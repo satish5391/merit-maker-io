@@ -8,6 +8,27 @@ export type Database = {
   };
   public: {
     Tables: {
+      coupons: {
+        Row: {
+          code: string;
+          discount_percentage: number;
+          max_discount: number | null;
+          is_active: boolean;
+        };
+        Insert: {
+          code: string;
+          discount_percentage: number;
+          max_discount?: number | null;
+          is_active?: boolean;
+        };
+        Update: {
+          code?: string;
+          discount_percentage?: number;
+          max_discount?: number | null;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
       advertisements: {
         Row: {
           id: string;

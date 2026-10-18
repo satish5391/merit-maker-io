@@ -93,6 +93,13 @@ type RazorpayInstance = {
 
 type RazorpayConstructor = new (options: RazorpayOptions) => RazorpayInstance;
 
+type Coupon = {
+  code: string;
+  discount_percentage: number;
+  max_discount: number | null;
+  is_active: boolean;
+};
+
 async function fetchTestsWithStats(): Promise<TestWithStats[]> {
   const tests = await fetchTests();
   const [{ data: as }, questionCounts] = await Promise.all([
@@ -334,6 +341,10 @@ function Home() {
   const [purchaseItem, setPurchaseItem] = useState<any>(null);
   const [purchaseItemType, setPurchaseItemType] = useState<"test" | "package">("test");
   const [applyCoins, setApplyCoins] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [packageViewerOpen, setPackageViewerOpen] = useState(false);
   const [packageViewerPackage, setPackageViewerPackage] = useState<any>(null);
@@ -386,7 +397,65 @@ function Home() {
   const maxAllowedDiscount = packagePrice * 0.5;
   const redeemableCoins = Math.min(coinBalance, maxAllowedDiscount);
   const coinsApplied = applyCoins ? Math.floor(redeemableCoins) : 0;
-  const finalPayableAmount = Math.max(0, packagePrice - coinsApplied);
+  const couponDiscount = appliedCoupon
+    ? Math.min(
+        (packagePrice * Number(appliedCoupon.discount_percentage)) / 100,
+        appliedCoupon.max_discount === null
+          ? Number.POSITIVE_INFINITY
+          : Number(appliedCoupon.max_discount),
+      )
+    : 0;
+
+  const calculateFinalPrice = () => {
+    const discount = applyCoins ? coinsApplied : couponDiscount;
+    return Math.max(1, packagePrice - discount);
+  };
+
+  const finalPayableAmount = calculateFinalPrice();
+
+  const handleApplyCoupon = async () => {
+    const normalizedCode = couponCode.trim();
+    if (!normalizedCode) {
+      setCouponError("Invalid or expired coupon code");
+      return;
+    }
+
+    setIsApplyingCoupon(true);
+    setCouponError("");
+
+    try {
+      const { data, error } = await supabase
+        .from("coupons")
+        .select("code, discount_percentage, max_discount, is_active")
+        .ilike("code", normalizedCode)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        setAppliedCoupon(null);
+        setCouponError("Invalid or expired coupon code");
+        return;
+      }
+
+      setAppliedCoupon(data);
+      setApplyCoins(false);
+      setCouponCode(data.code);
+      setCouponError("");
+    } catch (error) {
+      console.error("Coupon lookup failed:", error);
+      setAppliedCoupon(null);
+      setCouponError("Unable to apply coupon. Please try again.");
+    } finally {
+      setIsApplyingCoupon(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError("");
+  };
 
   const { data: myAttempts = [] } = useQuery({
     queryKey: ["my-attempts", resolvedUserId],
@@ -495,6 +564,7 @@ function Home() {
     setPurchaseItem(item);
     setPurchaseItemType(type);
     setApplyCoins(false);
+    removeCoupon();
     setPurchaseModalOpen(true);
     setIsUnlockModalOpen(true);
   };
@@ -503,6 +573,7 @@ function Home() {
     setPurchaseModalOpen(false);
     setIsUnlockModalOpen(false);
     setApplyCoins(false);
+    removeCoupon();
   };
 
   const completePurchase = async () => {
@@ -510,7 +581,7 @@ function Home() {
 
     try {
       setIsPaymentLoading(true);
-      const effectiveAmount = Number(finalPayableAmount || packagePrice || 99);
+      const effectiveAmount = Number(finalPayableAmount);
 
       if (!user?.id || !isSupabaseUserId(user.id)) {
         throw new Error("Please sign in before completing a purchase.");
@@ -560,16 +631,21 @@ function Home() {
           const currentItemType = isPackage ? "package" : "test";
           const currentItemId = String(purchaseItem.id);
 
-          const { error } = await (supabase as any).from("user_purchases").insert({
+          const purchasePayload = {
             user_id: activeUserId,
             item_type: currentItemType,
             item_id: currentItemId,
-            amount: Number(effectiveAmount),
+            amount: Number(finalPayableAmount),
             payment_id: response.razorpay_payment_id || `pay_${Date.now()}`,
             status: "completed",
             test_id: isPackage ? null : currentItemId,
             package_id: isPackage ? currentItemId : null,
-          });
+            ...(appliedCoupon ? { applied_coupon: appliedCoupon.code } : {}),
+          };
+
+          const { error } = await (supabase as any)
+            .from("user_purchases")
+            .insert(purchasePayload);
 
           if (error) {
             console.error("Supabase insert error details:", error);
@@ -660,7 +736,11 @@ function Home() {
                   <input
                     type="checkbox"
                     checked={applyCoins}
-                    onChange={(event) => setApplyCoins(event.target.checked)}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setApplyCoins(checked);
+                      if (checked) removeCoupon();
+                    }}
                     disabled={coinBalance <= 0 || redeemableCoins <= 0 || isPaymentLoading}
                     className="h-4 w-4 accent-cyan-600"
                   />
@@ -671,6 +751,53 @@ function Home() {
                 </span>
                 <span className="font-semibold text-cyan-700">-{coinsApplied.toFixed(2)} INR</span>
               </label>
+              <div className="border border-orange-200 bg-orange-50/50 rounded-lg p-3 border-dashed flex items-center justify-between mb-4">
+                {appliedCoupon ? (
+                  <>
+                    <span className="text-sm font-semibold text-green-700">
+                      🎯 COUPON APPLIED: -₹{couponDiscount.toFixed(2)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={removeCoupon}
+                      disabled={isPaymentLoading}
+                      className="text-xs font-medium text-slate-600 underline hover:text-slate-900 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={couponCode}
+                      onChange={(event) => {
+                        setCouponCode(event.target.value.toUpperCase());
+                        setCouponError("");
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void handleApplyCoupon();
+                      }}
+                      placeholder="ENTER COUPON CODE"
+                      disabled={isApplyingCoupon || isPaymentLoading}
+                      className="min-w-0 flex-1 bg-transparent text-sm uppercase outline-none placeholder:text-orange-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleApplyCoupon()}
+                      disabled={!couponCode.trim() || isApplyingCoupon || isPaymentLoading}
+                      className="ml-3 rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isApplyingCoupon ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Apply"
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+              {couponError && <p className="-mt-2 mb-3 text-xs text-red-600">{couponError}</p>}
               <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-lg font-semibold">
                 <span>Final payable</span>
                 <span>₹{finalPayableAmount.toFixed(2)}</span>
