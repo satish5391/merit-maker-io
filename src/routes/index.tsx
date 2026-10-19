@@ -484,10 +484,13 @@ function Home() {
   const categories = ["All", ...Array.from(new Set((tests ?? []).map((t) => t.category)))];
 
   const packagesWithMeta = (packages ?? []).map((p: any) => {
-    const included = (packageTests ?? [])
+    const includedLinks = (packageTests ?? [])
       .filter((pt: any) => String(pt.package_id) === String(p.id))
-      .map((pt: any) => pt.test_id);
-    return { ...p, includedTests: included };
+    return {
+      ...p,
+      includedTests: includedLinks.map((pt: any) => pt.test_id),
+      includedLinks,
+    };
   });
 
   const { unlockedIds } = useMemo(() => {
@@ -544,7 +547,12 @@ function Home() {
         package: pkg,
         tests: enrolledTests.filter((test) =>
           pkg.includedTests.some((testId: string) => String(testId) === String(test.id)),
-        ),
+        ).map((test) => ({
+          ...test,
+          sub_folder:
+            pkg.includedLinks.find((link: any) => String(link.test_id) === String(test.id))
+              ?.sub_folder ?? null,
+        })),
       }))
       .filter((folder) => folder.tests.length > 0);
 
@@ -558,12 +566,26 @@ function Home() {
     if (standaloneTests.length > 0) {
       folders.push({
         package: { id: "standalone", title: "Standalone Tests", category: "Individual tests" },
-        tests: standaloneTests,
+        tests: standaloneTests.map((test) => ({ ...test, sub_folder: null })),
       });
     }
 
     return folders;
   }, [enrolledTests, packagesWithMeta]);
+
+  const enrolledSubFolders = useMemo(() => {
+    if (activeView !== "enrolled" || activeFolder === null) return [];
+
+    const folder = purchasedFolders.find((item) => item.package.title === activeFolder);
+    const groups = new Map<string, TestWithStats[]>();
+    for (const test of folder?.tests ?? []) {
+      const folderName = String((test as any).sub_folder ?? "").trim() || "General Tests";
+      const group = groups.get(folderName) ?? [];
+      group.push(test);
+      groups.set(folderName, group);
+    }
+    return Array.from(groups, ([name, tests]) => ({ name, tests }));
+  }, [activeFolder, activeView, purchasedFolders]);
 
   const hasPurchased = (itemType: "test" | "package", id: string) => {
     if (hasFreePass) return true;
@@ -1529,7 +1551,7 @@ function Home() {
                         return 0;
                       });
 
-                    return filtered.map((t) => {
+                    const renderTestCard = (t: TestWithStats) => {
                       const userAttemptCount = (myAttempts ?? []).filter(
                         (a: any) => a.test_id === t.id,
                       ).length;
@@ -1638,7 +1660,40 @@ function Home() {
                           )}
                         </article>
                       );
-                    });
+                    };
+
+                    if (activeView === "enrolled" && activeFolder !== null) {
+                      return (
+                        <div className="col-span-full space-y-3">
+                          {enrolledSubFolders.map((group, index) => (
+                            <details
+                              key={group.name}
+                              open={index === 0}
+                              className="group overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"
+                            >
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                                <span className="flex items-center gap-3">
+                                  <span className="text-cyan-700 transition-transform group-open:rotate-90">
+                                    ›
+                                  </span>
+                                  {group.name}
+                                </span>
+                                <Badge variant="secondary">
+                                  {group.tests.length} {group.tests.length === 1 ? "Test" : "Tests"}
+                                </Badge>
+                              </summary>
+                              <div className="grid grid-cols-1 gap-5 border-t border-slate-100 p-5 md:grid-cols-2 lg:grid-cols-3">
+                                {group.tests
+                                  .filter((test) => filtered.some((item) => item.id === test.id))
+                                  .map(renderTestCard)}
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return filtered.map(renderTestCard);
                   })()}
 
                 {/* Fallback empty state */}

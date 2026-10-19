@@ -274,9 +274,27 @@ export type Database = {
         Relationships: [];
       };
       package_tests: {
-        Row: { id: string; package_id: string; test_id: string; created_at: string };
-        Insert: { id?: string; package_id: string; test_id: string; created_at?: string };
-        Update: { id?: string; package_id?: string; test_id?: string; created_at?: string };
+        Row: {
+          id: string;
+          package_id: string;
+          test_id: string;
+          sub_folder: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          package_id: string;
+          test_id: string;
+          sub_folder?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          package_id?: string;
+          test_id?: string;
+          sub_folder?: string | null;
+          created_at?: string;
+        };
         Relationships: [];
       };
       test_packages: {

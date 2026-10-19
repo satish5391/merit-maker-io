@@ -1267,6 +1267,7 @@ function PackagesManager() {
   const [pkgDiscountPrice, setPkgDiscountPrice] = useState<number | "">("");
   const [pkgIsCombo, setPkgIsCombo] = useState(false);
   const [pkgSelectedTests, setPkgSelectedTests] = useState<string[]>([]);
+  const [pkgTestFolders, setPkgTestFolders] = useState<Record<string, string>>({});
   const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{
     id: string;
@@ -1292,6 +1293,7 @@ function PackagesManager() {
     setPkgDiscountPrice("");
     setPkgIsCombo(false);
     setPkgSelectedTests([]);
+    setPkgTestFolders({});
   };
 
   const savePackage = useMutation({
@@ -1330,7 +1332,11 @@ function PackagesManager() {
       }
 
       if (pkgSelectedTests.length) {
-        const links = pkgSelectedTests.map((tId) => ({ package_id: packageId, test_id: tId }));
+        const links = pkgSelectedTests.map((tId) => ({
+          package_id: packageId,
+          test_id: tId,
+          sub_folder: pkgTestFolders[tId]?.trim() || null,
+        }));
         const { error: linkErr } = await (supabase as any).from("package_tests").insert(links);
         if (linkErr) throw linkErr;
       }
@@ -1356,6 +1362,14 @@ function PackagesManager() {
       (packagesData?.links ?? [])
         .filter((link: any) => link.package_id === pkg.id)
         .map((link: any) => link.test_id),
+    );
+    setPkgTestFolders(
+      (packagesData?.links ?? [])
+        .filter((link: any) => link.package_id === pkg.id)
+        .reduce((folders: Record<string, string>, link: any) => {
+          folders[link.test_id] = link.sub_folder ?? "";
+          return folders;
+        }, {}),
     );
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -1455,21 +1469,44 @@ function PackagesManager() {
           <div>
             <Label className="text-xs font-semibold text-slate-700">Select Mock Tests to Include</Label>
             <div className="mt-1.5 max-h-48 overflow-y-auto rounded-xl border border-slate-200 p-2 space-y-1 bg-slate-50">
-              {(tests ?? []).map((t) => (
-                <label key={t.id} className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-white text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={pkgSelectedTests.includes(t.id)}
-                    onChange={(e) =>
-                      setPkgSelectedTests((prev) =>
-                        e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id),
-                      )
-                  }
-                  className="size-3.5 rounded text-blue-600"
-                />
-                <span className="truncate text-slate-800 font-medium">{t.title}</span>
-              </label>
-              ))}
+              {(tests ?? []).map((t) => {
+                const selected = pkgSelectedTests.includes(t.id);
+                return (
+                  <div key={t.id} className="rounded-lg p-1.5 hover:bg-white text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          setPkgSelectedTests((prev) =>
+                            e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id),
+                          );
+                          if (!e.target.checked) {
+                            setPkgTestFolders((prev) => {
+                              const next = { ...prev };
+                              delete next[t.id];
+                              return next;
+                            });
+                          }
+                        }}
+                        className="size-3.5 rounded text-blue-600"
+                      />
+                      <span className="truncate text-slate-800 font-medium">{t.title}</span>
+                    </label>
+                    {selected && (
+                      <Input
+                        value={pkgTestFolders[t.id] ?? ""}
+                        onChange={(e) =>
+                          setPkgTestFolders((prev) => ({ ...prev, [t.id]: e.target.value }))
+                        }
+                        placeholder="Sub-Folder Name (optional)"
+                        aria-label={`Sub-Folder Name for ${t.title}`}
+                        className="mt-1.5 h-8 rounded-lg text-xs"
+                      />
+                    )}
+                  </div>
+                );
+              })}
           </div>
           </div>
 
