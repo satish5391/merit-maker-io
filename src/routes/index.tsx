@@ -164,6 +164,7 @@ function Home() {
   const [activeView, setActiveView] = useState<"home" | "all" | "free" | "packages" | "enrolled">(
     "home",
   );
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"newest" | "duration" | "questions">("newest");
@@ -205,6 +206,7 @@ function Home() {
 
   const handleSetView = (v: "home" | "all" | "free" | "packages" | "enrolled") => {
     setActiveView(v);
+    if (v !== "enrolled") setActiveFolder(null);
     updateUrlParam("tab", v === "home" || v === "all" ? "" : v);
   };
 
@@ -244,6 +246,13 @@ function Home() {
       setSearch(currentQ);
     } catch {
       // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "enrolled") {
+      setActiveFolder(params.get("expand"));
     }
     const onPop = () => {
       try {
@@ -481,7 +490,7 @@ function Home() {
     return { ...p, includedTests: included };
   });
 
-  const { purchasedPackageIds, unlockedIds } = useMemo(() => {
+  const { unlockedIds } = useMemo(() => {
     const purchased = (userPurchases ?? []).filter(
       (up: any) => !up.status || up.status === "completed" || up.payment_status === "completed",
     );
@@ -523,6 +532,38 @@ function Home() {
       packageTestIds: pkgTestIds,
     };
   }, [hasFreePass, packageTests, tests, userPurchases]);
+
+  const enrolledTests = useMemo(
+    () => (tests ?? []).filter((test) => unlockedIds.has(String(test.id))),
+    [tests, unlockedIds],
+  );
+
+  const purchasedFolders = useMemo(() => {
+    const folders = packagesWithMeta
+      .map((pkg: any) => ({
+        package: pkg,
+        tests: enrolledTests.filter((test) =>
+          pkg.includedTests.some((testId: string) => String(testId) === String(test.id)),
+        ),
+      }))
+      .filter((folder) => folder.tests.length > 0);
+
+    const groupedTestIds = new Set(
+      folders.flatMap((folder) => folder.tests.map((test) => String(test.id))),
+    );
+    const standaloneTests = enrolledTests.filter(
+      (test) => !groupedTestIds.has(String(test.id)),
+    );
+
+    if (standaloneTests.length > 0) {
+      folders.push({
+        package: { id: "standalone", title: "Standalone Tests", category: "Individual tests" },
+        tests: standaloneTests,
+      });
+    }
+
+    return folders;
+  }, [enrolledTests, packagesWithMeta]);
 
   const hasPurchased = (itemType: "test" | "package", id: string) => {
     if (hasFreePass) return true;
@@ -1375,69 +1416,42 @@ function Home() {
                 )}
 
                 {/* Enrolled view */}
-                {activeView === "enrolled" &&
-                  (purchasedPackageIds ?? []).length > 0 &&
-                  (packagesWithMeta ?? [])
-                    .filter((p: any) => (purchasedPackageIds ?? []).includes(p.id))
-                    .map((p: any) => {
-                      const offerPrice = p.discount_price ?? p.price;
-                      const savings =
-                        p.price && p.discount_price
-                          ? Math.round(((p.price - p.discount_price) / p.price) * 100)
-                          : 0;
-                      return (
-                        <article
-                          key={p.id}
-                          className="flex h-full min-w-0 flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition-shadow duration-200 hover:shadow-md"
-                        >
-                          <div className="flex min-w-0 flex-1 flex-col">
-                            <div className="flex flex-wrap items-start gap-2">
-                              <div className="min-w-0 flex-1 font-display font-semibold leading-6 text-slate-900">
-                                {p.title}
+                {activeView === "enrolled" && activeFolder === null && (
+                  <section className="col-span-full">
+                    {purchasedFolders.length > 0 ? (
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+                        {purchasedFolders.map(({ package: pkg, tests: folderTests }) => (
+                          <article
+                            key={pkg.id}
+                            className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-3">
+                                <h3 className="font-display text-lg font-semibold text-slate-900">
+                                  {pkg.title}
+                                </h3>
+                                <Badge variant="secondary">
+                                  {folderTests.length} Tests Included
+                                </Badge>
                               </div>
-                                <Badge variant="secondary">{p.category}</Badge>
-                                {p.is_combo && <Badge>Combo Offer</Badge>}
+                              <p className="mt-3 text-sm text-muted-foreground">
+                                {pkg.category ?? "Purchased test series"}
+                              </p>
                             </div>
-                            <p className="mt-3 min-h-[4.5rem] line-clamp-3 overflow-hidden text-ellipsis text-sm leading-6 text-muted-foreground">
-                              {p.description}
-                            </p>
-                            <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-                              <span className="font-semibold text-slate-900">₹{offerPrice ?? "—"}</span>
-                              {p.price && p.discount_price && (
-                                <span className="text-xs text-muted-foreground line-through">
-                                  ₹{p.price}
-                                </span>
-                              )}
-                              {savings > 0 && <Badge variant="secondary">{savings}% OFF</Badge>}
-                            </div>
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              {p.includedTests.length} tests included
-                            </div>
-                            <div className="mt-auto flex w-full flex-col gap-2 pt-5">
-                              <Button className="w-full" size="sm" variant="outline" onClick={() => openPackageViewer(p)}>
-                                View Included Tests
-                              </Button>
-                              <Button
-                                className="w-full bg-emerald-600 text-white"
-                                size="sm"
-                                onClick={() => openPackageViewer(p)}
-                              >
-                                Access Series
-                              </Button>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
-
-                {activeView === "enrolled" &&
-                  unlockedIds.size === 0 &&
-                  (purchasedPackageIds ?? []).length === 0 && (
-                    <div className="col-span-full">
-                      <div className="mt-6 rounded-xl border border-border bg-card p-6 text-center">
+                            <Button
+                              className="mt-6 w-full"
+                              onClick={() => setActiveFolder(pkg.title)}
+                            >
+                              Open Series
+                            </Button>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-border bg-card p-6 text-center">
                         <p className="text-sm text-muted-foreground">
-                          No purchased test series yet. Explore our test series and combo offers to
-                          unlock them.
+                          No purchased tests yet. Explore our test series and combo offers to unlock
+                          them.
                         </p>
                         <div className="mt-4">
                           <Button onClick={() => setActiveView("packages")}>
@@ -1445,11 +1459,28 @@ function Home() {
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </section>
+                )}
+
+                {activeView === "enrolled" && activeFolder !== null && (
+                  <section className="col-span-full">
+                    <Button
+                      variant="ghost"
+                      className="mb-4 px-0 text-cyan-700 hover:bg-transparent hover:text-cyan-900"
+                      onClick={() => setActiveFolder(null)}
+                    >
+                      ← Back to All Purchased Series
+                    </Button>
+                    <h2 className="font-display text-xl font-semibold md:text-2xl">
+                      {activeFolder}
+                    </h2>
+                  </section>
+                )}
 
                 {/* All / Free / Enrolled views */}
-                {(activeView === "all" || activeView === "free" || activeView === "enrolled") &&
+                {(activeView === "all" || activeView === "free" ||
+                  (activeView === "enrolled" && activeFolder !== null)) &&
                   (() => {
                     let list: TestWithStats[] = [];
                     if (activeView === "all") {
@@ -1470,7 +1501,10 @@ function Home() {
                         },
                       );
                     } else if (activeView === "enrolled") {
-                      list = (tests ?? []).filter((t) => unlockedIds.has(String(t.id)));
+                      list =
+                        purchasedFolders.find(
+                          (folder) => folder.package.title === activeFolder,
+                        )?.tests ?? [];
                     }
 
                     const q = search.trim().toLowerCase();
