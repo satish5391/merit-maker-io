@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Pencil,
   Plus,
@@ -183,7 +183,7 @@ function AdminDashboard() {
   });
 
   const [activeTab, setActiveTab] = useState<"tests" | "packages" | "notes" | "ads" | "users">("tests");
-  const [testSearch, setTestSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [itemToDelete, setItemToDelete] = useState<{
     id: string;
     type: "test" | "package";
@@ -606,15 +606,28 @@ function AdminDashboard() {
     }
   };
 
-  const filteredTests = (tests ?? []).filter((t) => {
-    const q = testSearch.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      t.title.toLowerCase().includes(q) ||
-      t.category.toLowerCase().includes(q) ||
-      t.subject.toLowerCase().includes(q)
-    );
-  });
+  const groupedTests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const filteredTests = (tests ?? []).filter((t) => {
+      if (!q) return true;
+      return (
+        String(t.title ?? "").toLowerCase().includes(q) ||
+        String(t.category ?? "").toLowerCase().includes(q) ||
+        String(t.subject ?? "").toLowerCase().includes(q)
+      );
+    });
+
+    return filteredTests.reduce<Record<string, typeof filteredTests>>((groups, test) => {
+      const category = test.category?.trim() || "Uncategorized";
+      (groups[category] ??= []).push(test);
+      return groups;
+    }, {});
+  }, [searchQuery, tests]);
+
+  const filteredTestCount = Object.values(groupedTests).reduce(
+    (count, categoryTests) => count + categoryTests.length,
+    0,
+  );
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -1130,13 +1143,13 @@ function AdminDashboard() {
                 <Search className="absolute left-3 top-2.5 size-4 text-slate-400" />
                 <Input
                   placeholder="Search tests by title, subject or exam..."
-                  value={testSearch}
-                  onChange={(e) => setTestSearch(e.target.value)}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 h-9 text-xs rounded-xl border-slate-200 bg-slate-50 focus:bg-white"
                 />
               </div>
               <Badge variant="secondary" className="px-3 py-1 font-semibold">
-                {filteredTests.length} Tests
+                {filteredTestCount} Tests
               </Badge>
             </div>
 
@@ -1144,13 +1157,27 @@ function AdminDashboard() {
               <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white">
                 <span className="size-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
               </div>
-            ) : filteredTests.length === 0 ? (
+            ) : filteredTestCount === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
                 No mock tests match your search criteria.
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredTests.map((t) => {
+                {Object.entries(groupedTests).map(([categoryName, categoryTests], categoryIndex) => (
+                  <details
+                    key={categoryName}
+                    open={categoryIndex === 0}
+                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
+                      <span className="flex items-center gap-2">
+                        <span className="text-blue-600 transition-transform group-open:rotate-90">›</span>
+                        {categoryName}
+                      </span>
+                      <Badge variant="secondary">{categoryTests.length}</Badge>
+                    </summary>
+                    <div className="space-y-3 border-t border-slate-100 p-3">
+                {categoryTests.map((t) => {
                   const isPaid = (t as any).is_free === false || (t as any).access_type === "paid";
                   return (
                     <div
@@ -1216,7 +1243,10 @@ function AdminDashboard() {
                   </div>
                 );
               })}
-            </div>
+                  </div>
+                </details>
+              ))}
+          </div>
           )}
           </div>
         </div>
