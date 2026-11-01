@@ -24,6 +24,7 @@ import {
   Gift,
   KeyRound,
   Check,
+  Copy,
   ImagePlus,
   Link as LinkIcon,
   LayoutTemplate,
@@ -39,7 +40,7 @@ import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { ADMIN_EMAILS } from "@/lib/admin-access";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchTests, fetchQuestions } from "@/lib/mock-test";
+import { fetchTests, fetchQuestions, type Test } from "@/lib/mock-test";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -115,6 +116,8 @@ const formatForDateTimeInput = (utcString?: string | null) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
+type TestAccessType = "free" | "paid" | "package_only";
+
 function Admin() {
   const { user, profile, loading } = useAuth();
   const email = user?.email?.trim().toLowerCase() ?? "";
@@ -181,9 +184,34 @@ function AdminDashboard() {
     queryKey: ["tests"],
     queryFn: fetchTests,
   });
+  const { data: packages = [], isLoading: isLoadingPackages } = useQuery({
+    queryKey: ["test-packages"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("test_packages")
+        .select("id, title, category, is_combo, is_active")
+        .eq("is_active", true)
+        .order("title", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const { data: packageTests = [] } = useQuery({
+    queryKey: ["package-tests"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("package_tests")
+        .select("test_id, package_id");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const [activeTab, setActiveTab] = useState<"tests" | "packages" | "notes" | "ads" | "users">("tests");
   const [searchQuery, setSearchQuery] = useState("");
+  const [navCategory, setNavCategory] = useState<string | null>(null);
+  const [navSeries, setNavSeries] = useState<string | null>(null);
+  const [navSubject, setNavSubject] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{
     id: string;
     type: "test" | "package";
@@ -194,15 +222,16 @@ function AdminDashboard() {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("General");
   const [subject, setSubject] = useState("General");
+  const [accessType, setAccessType] = useState<TestAccessType>("free");
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [price, setPrice] = useState<number | "">("");
+  const [discountPrice, setDiscountPrice] = useState<number | "">("");
   const [duration, setDuration] = useState(10);
   const [positive, setPositive] = useState(2);
   const [negative, setNegative] = useState(0.5);
   const [cutoff, setCutoff] = useState<number | "">("");
   const [cutoffMax, setCutoffMax] = useState<number | "">("");
   const [maxAttempts, setMaxAttempts] = useState<string>("1");
-  const [accessType, setAccessType] = useState<"free" | "paid" | "package_only">("free");
-  const [price, setPrice] = useState<number | "">("");
-  const [discountPrice, setDiscountPrice] = useState<number | "">("");
   const [questions, setQuestions] = useState<Draft[]>([emptyDraft()]);
   const [isLive, setIsLive] = useState(false);
   const [startTime, setStartTime] = useState("");
@@ -218,14 +247,15 @@ function AdminDashboard() {
     setTitle("");
     setCategory("General");
     setSubject("General");
+    setAccessType("free");
+    setSelectedPackageId("");
+    setPrice("");
+    setDiscountPrice("");
     setDuration(10);
     setPositive(2);
     setNegative(0.5);
     setCutoff("");
     setCutoffMax("");
-    setAccessType("free");
-    setPrice("");
-    setDiscountPrice("");
     setMaxAttempts("1");
     setQuestions([emptyDraft()]);
     setIsLive(false);
@@ -262,6 +292,10 @@ function AdminDashboard() {
         throw new Error("Live window end must be after its start");
       if (isLive && new Date(resultDeclarationTime) < new Date(endTime))
         throw new Error("Results cannot be declared before the live window ends");
+      if (accessType === "paid" && (price === "" || Number(price) <= 0))
+        throw new Error("Standalone paid tests require a price greater than zero");
+      if (accessType === "package_only" && !selectedPackageId)
+        throw new Error("Select a parent test series package");
 
       const payload: Record<string, any> = {
         title: title.trim(),
@@ -279,9 +313,9 @@ function AdminDashboard() {
             : Number(cutoffMax),
         access_type: accessType,
         is_free: accessType === "free",
-        price: accessType === "paid" ? (price === "" ? null : Number(price)) : null,
+        price: accessType === "paid" && price !== "" ? Number(price) : null,
         discount_price:
-          accessType === "paid" ? (discountPrice === "" ? null : Number(discountPrice)) : null,
+          accessType === "paid" && discountPrice !== "" ? Number(discountPrice) : null,
         max_attempts: parsedAttempts(),
         sectional_timing: sectionalTiming,
         sections: sections,
@@ -309,6 +343,19 @@ function AdminDashboard() {
           .single();
         if (error) throw error;
         testId = test.id;
+      }
+
+      const { error: delPackageLinkError } = await (supabase as any)
+        .from("package_tests")
+        .delete()
+        .eq("test_id", testId);
+      if (delPackageLinkError) throw delPackageLinkError;
+
+      if (accessType === "package_only" && selectedPackageId) {
+        const { error: packageLinkError } = await (supabase as any)
+          .from("package_tests")
+          .insert({ package_id: selectedPackageId, test_id: testId });
+        if (packageLinkError) throw packageLinkError;
       }
 
       const defaultSecId = sections[0]?.id || "section-default";
@@ -348,16 +395,27 @@ function AdminDashboard() {
       setTitle(test.title);
       setCategory(test.category ?? "General");
       setSubject(test.subject);
+      const { data: packageLink, error: packageLinkError } = await (supabase as any)
+        .from("package_tests")
+        .select("package_id")
+        .eq("test_id", testId)
+        .maybeSingle();
+      if (packageLinkError) throw packageLinkError;
+      setAccessType(
+        packageLink?.package_id || (test as any).access_type === "package_only"
+          ? "package_only"
+          : (test as any).access_type === "paid"
+            ? "paid"
+            : "free",
+      );
+      setSelectedPackageId(packageLink?.package_id ?? "");
+      setPrice((test as any).price ?? "");
+      setDiscountPrice((test as any).discount_price ?? "");
       setDuration(test.duration_minutes);
       setPositive(Number(test.positive_marks));
       setNegative(Number(test.negative_marks));
       setCutoff((test as any).cutoff ?? "");
       setCutoffMax((test as any).cutoff_max ?? "");
-      setAccessType(
-        (test as any).access_type ?? ((test as any).is_free === false ? "paid" : "free"),
-      );
-      setPrice((test as any).price ?? "");
-      setDiscountPrice((test as any).discount_price ?? "");
       setMaxAttempts(test.max_attempts === null ? "Unlimited" : String(test.max_attempts));
       setIsLive(Boolean((test as any).is_live));
       setStartTime(formatForDateTimeInput((test as any).start_time));
@@ -380,6 +438,63 @@ function AdminDashboard() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not load test");
+    }
+  };
+
+  const duplicateTest = async (testId: string) => {
+    const test = tests?.find((t) => t.id === testId);
+    if (!test) return;
+
+    try {
+      const { data: packageLink, error: packageLinkError } = await (supabase as any)
+        .from("package_tests")
+        .select("package_id")
+        .eq("test_id", testId)
+        .maybeSingle();
+      if (packageLinkError) throw packageLinkError;
+
+      setEditingId(null);
+      setTitle(`${test.title} (Copy)`);
+      setCategory(test.category ?? "General");
+      setSubject(test.subject ?? "General");
+      setAccessType(
+        packageLink?.package_id || (test as any).access_type === "package_only"
+          ? "package_only"
+          : (test as any).access_type === "paid"
+            ? "paid"
+            : "free",
+      );
+      setSelectedPackageId(packageLink?.package_id ?? "");
+      setPrice((test as any).price ?? "");
+      setDiscountPrice((test as any).discount_price ?? "");
+      setDuration(test.duration_minutes);
+      setPositive(Number(test.positive_marks));
+      setNegative(Number(test.negative_marks));
+      setCutoff((test as any).cutoff ?? "");
+      setCutoffMax((test as any).cutoff_max ?? "");
+      setMaxAttempts(test.max_attempts === null ? "Unlimited" : String(test.max_attempts));
+      setQuestions([]);
+      setIsLive(Boolean((test as any).is_live));
+      setStartTime(formatForDateTimeInput((test as any).start_time));
+      setEndTime(formatForDateTimeInput((test as any).end_time));
+      setResultDeclarationTime(formatForDateTimeInput((test as any).result_declaration_time));
+      const rawSections = (test as any).sections;
+      setSections(
+        Array.isArray(rawSections) && rawSections.length > 0
+          ? rawSections
+          : [
+              {
+                id: `section-${Date.now()}`,
+                name: "Default",
+                subject: test.subject ?? "General",
+                duration_minutes: test.duration_minutes,
+              },
+            ],
+      );
+      setSectionalTiming(Boolean((test as any).sectional_timing));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not duplicate test");
     }
   };
 
@@ -606,9 +721,21 @@ function AdminDashboard() {
     }
   };
 
-  const groupedTests = useMemo(() => {
+  const packageNameByTestId = useMemo(() => {
+    const packageById = new Map(
+      packages.map((pkg: { id: string; title: string }) => [pkg.id, pkg.title]),
+    );
+    return new Map(
+      packageTests.map((link: { test_id: string; package_id: string }) => [
+        link.test_id,
+        packageById.get(link.package_id) ?? "Included in Package",
+      ]),
+    );
+  }, [packageTests, packages]);
+
+  const filteredTests = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const filteredTests = (tests ?? []).filter((t) => {
+    return (tests ?? []).filter((t) => {
       if (!q) return true;
       return (
         String(t.title ?? "").toLowerCase().includes(q) ||
@@ -616,18 +743,66 @@ function AdminDashboard() {
         String(t.subject ?? "").toLowerCase().includes(q)
       );
     });
-
-    return filteredTests.reduce<Record<string, typeof filteredTests>>((groups, test) => {
-      const category = test.category?.trim() || "Uncategorized";
-      (groups[category] ??= []).push(test);
-      return groups;
-    }, {});
   }, [searchQuery, tests]);
 
-  const filteredTestCount = Object.values(groupedTests).reduce(
-    (count, categoryTests) => count + categoryTests.length,
-    0,
+  const getSeriesName = (test: Test) =>
+    String(
+      packageNameByTestId.get(test.id) ??
+        (test.access_type === "package_only" ? "Included in Package" : "Free / Standalone Tests"),
+    );
+
+  const categoryGroups = useMemo<[string, number][]>(
+    () =>
+      Array.from(
+        filteredTests.reduce<Map<string, number>>((groups, test) => {
+          const category = test.category?.trim() || "Uncategorized";
+          groups.set(category, (groups.get(category) ?? 0) + 1);
+          return groups;
+        }, new Map<string, number>()),
+      ),
+    [filteredTests],
   );
+
+  const seriesGroups = useMemo<[string, number][]>(
+    () =>
+      Array.from(
+        filteredTests
+          .filter((test) => (test.category?.trim() || "Uncategorized") === navCategory)
+          .reduce<Map<string, number>>((groups, test) => {
+            const series: string = String(getSeriesName(test));
+            groups.set(series, (groups.get(series) ?? 0) + 1);
+            return groups;
+          }, new Map<string, number>()),
+      ),
+    [filteredTests, navCategory, packageNameByTestId],
+  );
+
+  const subjectGroups = useMemo<[string, number][]>(
+    () =>
+      Array.from(
+        filteredTests
+          .filter(
+            (test) =>
+              (test.category?.trim() || "Uncategorized") === navCategory &&
+              getSeriesName(test) === navSeries,
+          )
+          .reduce<Map<string, number>>((groups, test) => {
+            const subject: string = String(test.subject?.trim() || "Uncategorized");
+            groups.set(subject, (groups.get(subject) ?? 0) + 1);
+            return groups;
+          }, new Map<string, number>()),
+      ),
+    [filteredTests, navCategory, navSeries, packageNameByTestId],
+  );
+
+  const visibleTests = filteredTests.filter(
+    (test) =>
+      (test.category?.trim() || "Uncategorized") === navCategory &&
+      getSeriesName(test) === navSeries &&
+      (test.subject?.trim() || "Uncategorized") === navSubject,
+  );
+
+  const filteredTestCount = filteredTests.length;
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -746,6 +921,107 @@ function AdminDashboard() {
                     </div>
                   </div>
 
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+                        Test Access
+                      </h3>
+                      <p className="mt-1 text-[11px] text-indigo-700">
+                        Choose whether this test is free, sold individually, or included in a package.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {(
+                        [
+                          ["free", "Free For All"],
+                          ["paid", "Paid (Standalone)"],
+                          ["package_only", "Included in Package"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <label
+                          key={value}
+                          className={`flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
+                            accessType === value
+                              ? "border-blue-500 text-blue-700 ring-1 ring-blue-500/20"
+                              : "border-slate-200 text-slate-600"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="test-access-type"
+                            value={value}
+                            checked={accessType === value}
+                            onChange={() => {
+                              setAccessType(value);
+                              if (value !== "package_only") setSelectedPackageId("");
+                            }}
+                            className="accent-blue-600"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+
+                    {accessType === "paid" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="test-price" className="text-xs font-semibold text-slate-700">
+                            Price (INR)
+                          </Label>
+                          <Input
+                            id="test-price"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={price}
+                            onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="e.g. 99"
+                            className="mt-1.5 h-10 rounded-xl bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="test-discount-price" className="text-xs font-semibold text-slate-700">
+                            Offer Price (INR)
+                          </Label>
+                          <Input
+                            id="test-discount-price"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={discountPrice}
+                            onChange={(e) =>
+                              setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))
+                            }
+                            placeholder="Optional"
+                            className="mt-1.5 h-10 rounded-xl bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {accessType === "package_only" && (
+                      <div>
+                        <Label htmlFor="test-package" className="text-xs font-semibold text-slate-700">
+                          Parent Test Series Package
+                        </Label>
+                        <select
+                          id="test-package"
+                          value={selectedPackageId}
+                          onChange={(e) => setSelectedPackageId(e.target.value)}
+                          disabled={isLoadingPackages}
+                          className="mt-1.5 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <option value="">Select a package</option>
+                          {packages.map((pkg: { id: string; title: string; category?: string | null }) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.title}{pkg.category ? ` — ${pkg.category}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label htmlFor="duration" className="text-xs font-semibold text-slate-700">Duration (Mins)</Label>
@@ -809,58 +1085,20 @@ function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
-                    <Label className="text-xs font-semibold text-slate-800">Test Access Type</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { id: "free", label: "Free For All" },
-                        { id: "paid", label: "Paid (Standalone)" },
-                        { id: "package_only", label: "Combo / Package Exclusive" },
-                      ].map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => setAccessType(item.id as any)}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all ${
-                            accessType === item.id
-                              ? "bg-blue-600 text-white border-blue-600 shadow-xs"
-                              : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                        }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <p className="text-xs font-semibold text-slate-800">
+                      Access: {
+                        accessType === "free"
+                          ? "Free For All"
+                          : accessType === "paid"
+                            ? "Paid (Standalone)"
+                            : "Included in Package"
+                      }
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Access is determined automatically by the selected test series package.
+                    </p>
                   </div>
-
-                  {accessType === "paid" && (
-                    <div className="mt-3 grid grid-cols-2 gap-3 pt-2 border-t border-slate-200">
-                      <div>
-                        <Label htmlFor="price" className="text-xs text-slate-600">Original Price (₹)</Label>
-                        <Input
-                          id="price"
-                          type="number"
-                          min={0}
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                          placeholder="e.g. 199"
-                          className="mt-1 h-9 rounded-lg bg-white"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="discountPrice" className="text-xs text-slate-600">Offer Price (₹)</Label>
-                        <Input
-                          id="discountPrice"
-                          type="number"
-                          min={0}
-                          value={discountPrice}
-                          onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
-                          placeholder="e.g. 99"
-                          className="mt-1 h-9 rounded-lg bg-white"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 <div className="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4">
                   <label className="flex items-center gap-2.5 text-xs font-bold text-cyan-900 cursor-pointer">
@@ -1163,21 +1401,83 @@ function AdminDashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {Object.entries(groupedTests).map(([categoryName, categoryTests], categoryIndex) => (
-                  <details
-                    key={categoryName}
-                    open={categoryIndex === 0}
-                    className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
-                  >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-semibold text-slate-900 [&::-webkit-details-marker]:hidden">
-                      <span className="flex items-center gap-2">
-                        <span className="text-blue-600 transition-transform group-open:rotate-90">›</span>
-                        {categoryName}
-                      </span>
-                      <Badge variant="secondary">{categoryTests.length}</Badge>
-                    </summary>
-                    <div className="space-y-3 border-t border-slate-100 p-3">
-                {categoryTests.map((t) => {
+                {(navCategory || navSeries || navSubject) && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (navSubject) setNavSubject(null);
+                        else if (navSeries) setNavSeries(null);
+                        else setNavCategory(null);
+                      }}
+                      className="h-8 px-2 text-blue-600 hover:text-blue-700"
+                    >
+                      ⬅ Back
+                    </Button>
+                    <span className="text-slate-400">All Exams</span>
+                    {navCategory && <><span className="text-slate-300">›</span><span>{navCategory}</span></>}
+                    {navSeries && <><span className="text-slate-300">›</span><span>{navSeries}</span></>}
+                    {navSubject && <><span className="text-slate-300">›</span><span>{navSubject}</span></>}
+                  </div>
+                )}
+
+                {!navCategory && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {categoryGroups.map(([categoryName, count]) => (
+                      <button
+                        key={categoryName}
+                        type="button"
+                        onClick={() => {
+                          setNavCategory(categoryName);
+                          setNavSeries(null);
+                          setNavSubject(null);
+                        }}
+                        className="flex cursor-pointer items-center justify-between rounded-xl border border-border p-5 text-left text-lg font-medium transition-colors hover:bg-accent/50"
+                      >
+                        <span>{categoryName}</span>
+                        <Badge variant="secondary">{count} Tests</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {navCategory && !navSeries && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {seriesGroups.map(([seriesName, count]) => (
+                      <button
+                        key={seriesName}
+                        type="button"
+                        onClick={() => {
+                          setNavSeries(seriesName);
+                          setNavSubject(null);
+                        }}
+                        className="flex cursor-pointer items-center justify-between rounded-xl border border-border p-5 text-left text-lg font-medium transition-colors hover:bg-accent/50"
+                      >
+                        <span>{seriesName}</span>
+                        <Badge variant="secondary">{count} Tests</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {navSeries && !navSubject && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {subjectGroups.map(([subjectName, count]) => (
+                      <button
+                        key={subjectName}
+                        type="button"
+                        onClick={() => setNavSubject(subjectName)}
+                        className="flex cursor-pointer items-center justify-between rounded-xl border border-border p-5 text-left text-lg font-medium transition-colors hover:bg-accent/50"
+                      >
+                        <span>{subjectName}</span>
+                        <Badge variant="secondary">{count} Tests</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {navSubject && visibleTests.map((t) => {
                   const isPaid = (t as any).is_free === false || (t as any).access_type === "paid";
                   return (
                     <div
@@ -1195,7 +1495,7 @@ function AdminDashboard() {
                             ) : (
                               <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">FREE</Badge>
                           )}
-                            <Badge variant="outline">{t.category}</Badge>
+                          <Badge variant="outline">{t.category}</Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
                             <span className="flex items-center gap-1">
@@ -1204,7 +1504,9 @@ function AdminDashboard() {
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="size-3.5 text-emerald-600" /> +{t.positive_marks} / -{t.negative_marks}
                             </span>
-                            <span className="text-slate-400">• Subject: {t.subject}</span>
+                            <span className="text-slate-400">
+                              • Subject: {t.subject}
+                            </span>
                           </div>
                         </div>
 
@@ -1216,6 +1518,15 @@ function AdminDashboard() {
                           className="h-8 rounded-lg text-xs"
                         >
                           <Pencil className="mr-1 size-3" /> Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void duplicateTest(t.id)}
+                          className="h-8 rounded-lg text-xs"
+                          title="Duplicate test"
+                        >
+                          <Copy className="mr-1 size-3" /> Copy
                         </Button>
                         <Button
                           size="sm"
@@ -1243,9 +1554,6 @@ function AdminDashboard() {
                   </div>
                 );
               })}
-                  </div>
-                </details>
-              ))}
           </div>
           )}
           </div>
@@ -1376,6 +1684,7 @@ function PackagesManager() {
       toast.success(editingPackageId ? "Package updated successfully" : "Package created successfully");
       resetPackageForm();
       void refetchPackages();
+      qc.invalidateQueries({ queryKey: ["test-packages"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1419,6 +1728,7 @@ function PackagesManager() {
       setItemToDelete(null);
       if (editingPackageId === id) resetPackageForm();
       void refetchPackages();
+      qc.invalidateQueries({ queryKey: ["test-packages"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
