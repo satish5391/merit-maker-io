@@ -74,6 +74,7 @@ export const Route = createFileRoute("/admin")({
 
 type Draft = {
   body: string;
+  diagram_url: string;
   options: string[];
   correct_index: number;
   explanation: string;
@@ -82,6 +83,7 @@ type Draft = {
 
 const emptyDraft = (): Draft => ({
   body: "",
+  diagram_url: "",
   options: ["", "", "", ""],
   correct_index: 0,
   explanation: "",
@@ -364,6 +366,7 @@ function AdminDashboard() {
           test_id: testId!,
           position: i + 1,
           body: q.body.trim(),
+          diagram_url: q.diagram_url.trim() || null,
           options: q.options.map((o) => String(o ?? "").trim()),
           correct_index: q.correct_index,
           explanation: q.explanation.trim(),
@@ -425,6 +428,7 @@ function AdminDashboard() {
         qs.length
           ? qs.map((q) => ({
               body: q.body,
+              diagram_url: q.diagram_url ?? "",
               options: q.options.length ? q.options : ["", "", "", ""],
               correct_index: q.correct_index,
               explanation: q.explanation ?? "",
@@ -565,6 +569,7 @@ function AdminDashboard() {
       const workbook = XLSX.read(fileData, {
         type: "array",
         raw: true,
+        codepage: 65001,
       });
       const sheetName = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames[0] : null;
       if (!sheetName) throw new Error("No sheet found in uploaded file.");
@@ -705,6 +710,7 @@ function AdminDashboard() {
         ...previous.filter((q) => q.body.trim()),
         ...parsedQuestions.map((q) => ({
           body: String(q.body),
+          diagram_url: "",
           options: (q.options as string[]).map((o) => String(o ?? "")),
           correct_index: Number(q.correct_index),
           explanation: String(q.explanation ?? ""),
@@ -1301,6 +1307,12 @@ function AdminDashboard() {
                         onChange={(e) => patch(i, { body: e.target.value })}
                         placeholder="Type the question content or problem statement here..."
                         className="bg-white min-h-[60px]"
+                      />
+                      <Input
+                        value={q.diagram_url}
+                        onChange={(e) => patch(i, { diagram_url: e.target.value })}
+                        placeholder="Image URL (Optional) - Leave blank for text-only questions"
+                        className="bg-white text-xs"
                       />
 
                       <div className="grid grid-cols-2 gap-2">

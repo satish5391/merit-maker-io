@@ -843,6 +843,13 @@ function TestPage() {
             {activeSectionQuestions.length}
           </p>
           <h2 className="mt-2 text-base font-medium md:text-lg whitespace-pre-line">{q.body}</h2>
+          {q.diagram_url && (
+            <img
+              src={q.diagram_url}
+              alt="Question diagram"
+              className="mb-4 h-auto max-h-72 max-w-full rounded-lg object-contain"
+            />
+          )}
 
           <div className="mt-5 space-y-3">
             {(Array.isArray(q.options) ? q.options : []).map((opt: string, i: number) => {

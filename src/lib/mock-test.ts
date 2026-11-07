@@ -30,6 +30,7 @@ export type Question = {
   options: string[];
   correct_index: number;
   explanation: string;
+  diagram_url?: string;
 };
 
 export type Attempt = {
